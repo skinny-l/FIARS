@@ -1,0 +1,9 @@
+fiars.db
+fiars.db-journal
+fiars.db.bak_*
+backups/
+uploads/
+__pycache__/
+*.pyc
+.venv/
+.DS_Store
