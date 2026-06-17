@@ -10,10 +10,9 @@ from urllib.parse import urlparse, parse_qs
 from fiars import db
 from fiars.extract import extract_text
 from fiars.config import load_config
-from fiars.parser import parse_ticket, search_text
+from fiars.parser import parse_ticket, parse_multi_ticket, search_text
 from fiars.report import build_report, default_draft
 from fiars.smart_search import smart_search
-from fiars.checklist import generate_checklist
 
 CFG = load_config()
 HERE = os.path.dirname(os.path.abspath(__file__))
@@ -33,7 +32,7 @@ def startup():
     print(f"  Database: {status}")
 
     # Auto-load KB + confirmed solutions
-    for script in ("load_kb_power_fault.py", "load_confirmed_solutions.py", "load_server_fault_kb.py", "load_sa5212d6_faults.py"):
+    for script in ("load_kb_power_fault.py", "load_confirmed_solutions.py", "load_server_fault_kb.py", "load_sa5212d6_faults.py", "load_gpu_faults.py"):
         path = os.path.join(HERE, "scripts", script)
         if os.path.exists(path):
             try:
@@ -171,33 +170,27 @@ class Handler(BaseHTTPRequestHandler):
                 raw = b.get("raw", "")
                 if not raw.strip():
                     return self._json(400, {"error": "Paste the fault block first."})
-                job = parse_ticket(raw, b.get("ticket_number", ""))
-                draft = default_draft(job)
-                query = search_text(job)
-                kb_matches = db.kb_pattern_lookup(CFG["db_path"], raw)
-                kb_results = smart_search(db, CFG["db_path"], query + " " + raw)
-                return self._json(200, {"job": job, "draft": draft,
-                    "report": build_report(draft),
-                    "kb_matches": kb_matches, "kb_results": kb_results[:10]})
+                jobs = parse_multi_ticket(raw, b.get("ticket_number", ""))
+                results = []
+                for job in jobs:
+                    draft = default_draft(job)
+                    query = search_text(job)
+                    kb_matches = db.kb_pattern_lookup(CFG["db_path"], job.get("raw", raw))
+                    kb_results = smart_search(db, CFG["db_path"], query,
+                                              parsed_category=job.get("category", ""))
+                    results.append({"job": job, "draft": draft,
+                        "report": build_report(draft),
+                        "kb_matches": kb_matches, "kb_results": kb_results[:10]})
+                # Single block: return flat (backwards compatible)
+                if len(results) == 1:
+                    return self._json(200, results[0])
+                # Multi-block: return array
+                return self._json(200, {"multi": True, "blocks": results,
+                    "count": len(results)})
 
             if path == "/api/report":
                 b = self._body()
                 return self._json(200, {"report": build_report(b.get("draft", {}))})
-
-            if path == "/api/checklist":
-                b = self._body()
-                job = b.get("job", {})
-                engineer = b.get("engineer", "")
-                html = generate_checklist(job, engineer)
-                data = html.encode()
-                self.send_response(200)
-                self.send_header("Content-Type", "text/html; charset=utf-8")
-                self.send_header("Content-Disposition",
-                    f'attachment; filename="checklist_{job.get("ticket_number","")}.html"')
-                self.send_header("Content-Length", str(len(data)))
-                self.end_headers()
-                self.wfile.write(data)
-                return
 
             if path == "/api/knowledge/export":
                 results = db.search_knowledge(CFG["db_path"], "", limit=9999)

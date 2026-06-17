@@ -82,7 +82,7 @@ th:hover{color:var(--ink)}
         <div id="pSolution" style="font-size:13px">No matching solutions in knowledge base yet.</div>
       </div>
       <div class="card">
-        <h2>Report <button class="gh sm" id="dlChecklist" style="float:right;margin-left:4px">Download Checklist</button><button class="gh sm" id="copyReport" style="float:right">Copy</button></h2>
+        <h2>Report <button class="gh sm" id="copyReport" style="float:right">Copy</button></h2>
         <div id="pReport" class="pre"></div>
       </div>
     </div>
@@ -238,77 +238,56 @@ $('parseBtn').onclick=async()=>{
   const r=await api('/api/parse',J({raw:$('pRaw').value,ticket_number:$('pTicket').value}));
   btn.disabled=false;btn.textContent='Parse & diagnose';
   if(r.error){toast(r.error,1);return}
-  S.job=r.job;S.draft=r.draft;$('parseOut').classList.remove('hidden');
+  const blocks=r.multi?r.blocks:[r];
+  if(r.multi)toast(`${r.count} fault blocks detected`);
+  const first=blocks[0];
+  S.job=first.job;S.draft=first.draft;$('parseOut').classList.remove('hidden');
 
   // Solution (TOP)
   const sol=$('pSolution');
-  if(r.kb_results&&r.kb_results.length){
-    const top=r.kb_results[0];
-    sol.innerHTML=`<div style="margin-bottom:8px"><span class="badge b-ok">${esc(top.category)}</span>
-      <b>${esc(top.error_code||'')}</b></div>
+  if(first.kb_results&&first.kb_results.length){
+    const top=first.kb_results[0];
+    sol.innerHTML=`<div style="margin-bottom:8px"><span class="badge b-ok">${esc(top.category)}</span> <b>${esc(top.error_code||'')}</b></div>
       <div style="margin-bottom:6px">${esc(top.fault_description)}</div>
       ${top.root_cause?`<div style="color:var(--mt);margin-bottom:4px"><b>Root cause:</b> ${esc(top.root_cause)}</div>`:''}
       <div style="color:var(--ok)"><b>Solution:</b> ${esc(top.solution)}</div>
-      ${top.affected_parts?`<div style="color:var(--mt);margin-top:4px"><b>Parts:</b> ${esc(top.affected_parts)}</div>`:''}
-      ${r.kb_results.length>1?`<div style="margin-top:8px;border-top:1px solid var(--ln);padding-top:6px;font-size:12px;color:var(--mt)">
-        +${r.kb_results.length-1} more matches — see Related Knowledge below</div>`:''}`;
-  } else {
-    sol.innerHTML='<div style="color:var(--mt)">No matching solutions yet. After you solve this, add it to the knowledge base.</div>';
-  }
+      ${top.affected_parts?`<div style="color:var(--mt);margin-top:4px"><b>Parts:</b> ${esc(top.affected_parts)}</div>`:''}`;
+  } else {sol.innerHTML='<div style="color:var(--mt)">No matching solutions yet.</div>';}
 
-  // Report (TOP)
-  $('pReport').textContent=r.report;
+  $('pReport').textContent=blocks.map((b,i)=>blocks.length>1?`--- Block ${i+1}: ${b.job.fault_type||'?'} ---\n${b.report}`:b.report).join('\n\n');
 
   // KB pattern matches
   const pk=$('pKB');pk.innerHTML='';
-  (r.kb_matches||[]).forEach(m=>{
-    pk.innerHTML+=`<div class="kb-box"><span class="kb-pat">${esc(m.error_pattern)}</span>
-      → ${esc(m.power_rail||'')}<br>Suspects: <b>${(m.suspect_components||[]).join(', ')}</b>
+  blocks.forEach(b=>(b.kb_matches||[]).forEach(m=>{
+    pk.innerHTML+=`<div class="kb-box"><span class="kb-pat">${esc(m.error_pattern)}</span> → ${esc(m.power_rail||'')}<br>Suspects: <b>${(m.suspect_components||[]).join(', ')}</b>
       ${m.dimm_slots&&m.dimm_slots.length?'<br>DIMMs: '+m.dimm_slots.join(', '):''}
-      ${m.article?'<br><span style="color:var(--mt)">'+esc(m.article.suggestions||m.article.solution||'')+'</span>':''}</div>`;
-  });
+      ${m.article?'<br><span style="color:var(--mt)">'+esc(m.article.suggestions||m.article.solution||'')+'</span>':''}</div>`;}));
 
-  // Related knowledge
+  // Related knowledge (all blocks, deduped)
   const pkr=$('pKBR');pkr.innerHTML='';
-  if(r.kb_results&&r.kb_results.length>1){
-    pkr.innerHTML='<div class="card"><h2>Related knowledge</h2>'+r.kb_results.slice(1,6).map(k=>
-      `<div style="padding:6px 0;border-bottom:1px solid var(--ln);font-size:13px">
-        <span class="badge b-mt">${esc(k.category||'')}</span> <b>${esc(k.error_code||'')}</b>
-        ${esc(k.fault_description.slice(0,60))}<div class="sol">${esc(k.solution.slice(0,100))}</div></div>`
-    ).join('')+'</div>';
+  const allKB=[];const seen=new Set();
+  blocks.forEach(b=>(b.kb_results||[]).forEach(k=>{if(!seen.has(k.id)){seen.add(k.id);allKB.push(k)}}));
+  if(allKB.length>1){pkr.innerHTML='<div class="card"><h2>Related knowledge ('+allKB.length+')</h2>'+allKB.slice(0,8).map(k=>
+    `<div style="padding:6px 0;border-bottom:1px solid var(--ln);font-size:13px"><span class="badge b-mt">${esc(k.category||'')}</span> <b>${esc(k.error_code||'')}</b> ${esc(k.fault_description.slice(0,60))}<div class="sol">${esc(k.solution.slice(0,100))}</div></div>`).join('')+'</div>';}
+
+  // Details
+  const j=first.job;
+  if(blocks.length>1){
+    $('pDet1').innerHTML=blocks.map((b,i)=>`<div class="k" style="grid-column:1/-1;color:var(--ac);margin-top:${i?8:0}px">Block ${i+1}: ${b.job.fault_type||'?'}</div>`+
+      [['Desc',b.job.fault_description],['Part',(b.job.part||{}).type],['Slot',(b.job.part||{}).position]].filter(p=>p[1]).map(p=>`<div class="k">${p[0]}</div><div>${esc(String(p[1]))}</div>`).join('')).join('');
+    $('pDet2').innerHTML=[['SN',j.server_sn],['Location',j.location_full],['Model',j.server_model]].filter(p=>p[1]).map(p=>`<div class="k">${p[0]}</div><div>${esc(String(p[1]))}</div>`).join('');
+  } else {
+    $('pDet1').innerHTML=[['Ticket',j.ticket_number],['SN',j.server_sn],['Location',j.location_full],['Model',j.server_model],['Vendor',j.manufacturer]].filter(p=>p[1]).map(p=>`<div class="k">${p[0]}</div><div>${esc(String(p[1]))}</div>`).join('');
+    $('pDet2').innerHTML=[['Category',j.category],['Type',j.fault_type],['Description',j.fault_description],['Detail',j.fault_detail],['Part',j.part_model],['Slot',(j.part||{}).position]].filter(p=>p[1]).map(p=>`<div class="k">${p[0]}</div><div>${esc(String(p[1]))}</div>`).join('');
   }
-
-  // Parsed details
-  const j=r.job;
-  $('pDet1').innerHTML=[['Ticket',j.ticket_number],['SN',j.server_sn],['Location',j.location_full],
-    ['Model',j.server_model],['Vendor',j.manufacturer]].filter(p=>p[1]).map(
-    p=>`<div class="k">${p[0]}</div><div>${esc(String(p[1]))}</div>`).join('');
-  $('pDet2').innerHTML=[['Category',j.category],['Type',j.fault_type],['Description',j.fault_description],
-    ['Detail',j.fault_detail],['Part',j.part_model],['Slot',(j.part||{}).position]].filter(p=>p[1]).map(
-    p=>`<div class="k">${p[0]}</div><div>${esc(String(p[1]))}</div>`).join('');
-
-  // Prefill case log
-  $('cErr').value=j.fault_description||'';
-  $('cParts').value=(j.part||{}).type||'';
-  $('cSol').value=(r.kb_results&&r.kb_results[0])?r.kb_results[0].solution:'';
+  $('cErr').value=first.job.fault_description||'';
+  $('cParts').value=(first.job.part||{}).type||'';
+  $('cSol').value=(first.kb_results&&first.kb_results[0])?first.kb_results[0].solution:'';
   const cfg=await api('/api/config');if(cfg.engineer_name)$('cEng').value=cfg.engineer_name;
   $('parseOut').scrollIntoView({behavior:'smooth'});
 };
 
 $('copyReport').onclick=()=>navigator.clipboard.writeText($('pReport').textContent).then(()=>toast('Copied')).catch(()=>toast('Failed',1));
-
-$('dlChecklist').onclick=async()=>{
-  if(!S.job){toast('Parse a ticket first',1);return}
-  const r=await fetch('/api/checklist',{method:'POST',headers:{'Content-Type':'application/json'},
-    body:JSON.stringify({job:S.job,engineer:$('cEng').value})});
-  if(!r.ok){toast('Failed to generate checklist',1);return}
-  const blob=await r.blob();
-  const url=URL.createObjectURL(blob);
-  const a=document.createElement('a');
-  a.href=url;a.download=`checklist_${S.job.ticket_number||'ticket'}.html`;
-  a.click();URL.revokeObjectURL(url);
-  toast('Checklist downloaded — open in browser and print to PDF');
-};
 
 $('logCase').onclick=async()=>{
   const ef=$('cErr').value.trim(),sol=$('cSol').value.trim();

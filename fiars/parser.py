@@ -28,6 +28,7 @@ KNOWN_KEYS = {
     "manufacturer", "part_manufacturer", "firmware_version", "part_sn",
     "part_size", "part_type", "part_pn", "fault_log_dir", "fault_detail",
     "fault_part", "fault_type", "fault_description", "fault_30day_rt",
+    "manufacturer_id", "disk_virtual_return_status",
     "manufacturer_id",
 }
 # Only underscore-style keys are safe to split on mid-line: plain words like
@@ -66,12 +67,13 @@ def _canon_key(key: str) -> str:
 # fault_type / part_type -> coarse category used by the similarity engine
 _CATEGORY_KEYWORDS = {
     "Storage": ["disk", "hdd", "ssd", "drive", "raid", "sas", "sata", "nvme"],
-    "Memory":  ["memory", "dimm", "ram", "ecc"],
+    "Memory":  ["memory", "dimm", "ram", "ecc", "edac"],
     "CPU":     ["cpu", "processor", "socket"],
     "Power":   ["power", "psu", "supply"],
-    "Network": ["nic", "network", "link", "ethernet", "port"],
+    "Network": ["nic", "network", "link", "ethernet", "port", "pcie"],
     "Thermal": ["fan", "temp", "thermal", "overheat", "heat"],
     "Board":   ["board", "motherboard", "system board", "backplane"],
+    "GPU":     ["gpu", "cuda", "nvidia", "xid", "vbios"],
 }
 
 
@@ -144,6 +146,10 @@ def parse_ticket(raw: str, ticket_number: str = "") -> dict[str, Any]:
     fault_detail = g("fault_detail", "")
     fault_type = g("fault_type", "")
 
+    # If fault_description is empty or just "-", use fault_detail
+    if not fault_description or fault_description.strip() == "-":
+        fault_description = fault_detail
+
     r30 = _to_int(g("fault_30day_rt", "0"))
     r60 = _to_int(g("fault_60day_rt", "0"))
 
@@ -198,6 +204,24 @@ def search_text(job: dict[str, Any]) -> str:
         job.get("part_model", ""),
     ]
     return " ".join(p for p in parts if p).strip()
+
+
+def parse_multi_ticket(raw: str, ticket_number: str = "") -> list[dict[str, Any]]:
+    """
+    Detect multi-block tickets (multiple 工单标签/tags: sections).
+    Returns a list of jobs.
+    """
+    marker = "工单标签/tags"
+    if raw.count(marker) > 1:
+        parts = raw.split(marker)
+        blocks = [marker + ":" + p for p in parts[1:] if p.strip()]
+    else:
+        blocks = [raw]
+    jobs = []
+    for i, block in enumerate(blocks):
+        tid = f"{ticket_number}#{i+1}" if len(blocks) > 1 else ticket_number
+        jobs.append(parse_ticket(block.strip(), tid))
+    return jobs
 
 
 if __name__ == "__main__":
