@@ -13,6 +13,7 @@ from fiars.config import load_config
 from fiars.parser import parse_ticket, search_text
 from fiars.report import build_report, default_draft
 from fiars.smart_search import smart_search
+from fiars.checklist import generate_checklist
 
 CFG = load_config()
 HERE = os.path.dirname(os.path.abspath(__file__))
@@ -32,7 +33,7 @@ def startup():
     print(f"  Database: {status}")
 
     # Auto-load KB + confirmed solutions
-    for script in ("load_kb_power_fault.py", "load_confirmed_solutions.py", "load_server_fault_kb.py"):
+    for script in ("load_kb_power_fault.py", "load_confirmed_solutions.py", "load_server_fault_kb.py", "load_sa5212d6_faults.py"):
         path = os.path.join(HERE, "scripts", script)
         if os.path.exists(path):
             try:
@@ -182,6 +183,49 @@ class Handler(BaseHTTPRequestHandler):
             if path == "/api/report":
                 b = self._body()
                 return self._json(200, {"report": build_report(b.get("draft", {}))})
+
+            if path == "/api/checklist":
+                b = self._body()
+                job = b.get("job", {})
+                engineer = b.get("engineer", "")
+                html = generate_checklist(job, engineer)
+                data = html.encode()
+                self.send_response(200)
+                self.send_header("Content-Type", "text/html; charset=utf-8")
+                self.send_header("Content-Disposition",
+                    f'attachment; filename="checklist_{job.get("ticket_number","")}.html"')
+                self.send_header("Content-Length", str(len(data)))
+                self.end_headers()
+                self.wfile.write(data)
+                return
+
+            if path == "/api/knowledge/export":
+                results = db.search_knowledge(CFG["db_path"], "", limit=9999)
+                return self._json(200, {"knowledge": results, "count": len(results)})
+
+            if path == "/api/knowledge/import":
+                b = self._body()
+                entries = b.get("knowledge", [])
+                if not entries:
+                    return self._json(400, {"error": "No entries to import."})
+                added = 0
+                skipped = 0
+                for e in entries:
+                    if not e.get("fault_description") or not e.get("solution"):
+                        skipped += 1
+                        continue
+                    # Skip if exact error_code already exists
+                    if e.get("error_code"):
+                        con = db.connect(CFG["db_path"])
+                        exists = con.execute("SELECT 1 FROM knowledge WHERE error_code=?",
+                            (e["error_code"],)).fetchone()
+                        con.close()
+                        if exists:
+                            skipped += 1
+                            continue
+                    db.add_knowledge(CFG["db_path"], e)
+                    added += 1
+                return self._json(200, {"ok": True, "added": added, "skipped": skipped})
 
             if path == "/api/upload":
                 return self._handle_upload()

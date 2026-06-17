@@ -82,7 +82,7 @@ th:hover{color:var(--ink)}
         <div id="pSolution" style="font-size:13px">No matching solutions in knowledge base yet.</div>
       </div>
       <div class="card">
-        <h2>Report <button class="gh sm" id="copyReport" style="float:right">Copy</button></h2>
+        <h2>Report <button class="gh sm" id="dlChecklist" style="float:right;margin-left:4px">Download Checklist</button><button class="gh sm" id="copyReport" style="float:right">Copy</button></h2>
         <div id="pReport" class="pre"></div>
       </div>
     </div>
@@ -121,6 +121,11 @@ th:hover{color:var(--ink)}
 <div class="pane" id="p-search">
   <div class="card">
     <div class="si"><input id="sQ" placeholder="Search errors, parts, solutions…"></div>
+    <div style="margin-top:8px;display:flex;gap:6px">
+      <button class="gh sm" id="kbExport">Export knowledge (JSON)</button>
+      <button class="gh sm" id="kbImportBtn">Import knowledge (JSON)</button>
+      <input type="file" id="kbImportFile" accept=".json" style="display:none">
+    </div>
   </div>
   <div id="sResults"></div>
   <div id="sEmpty" class="hidden" style="text-align:center;color:var(--mt);padding:30px">No results.</div>
@@ -292,6 +297,19 @@ $('parseBtn').onclick=async()=>{
 
 $('copyReport').onclick=()=>navigator.clipboard.writeText($('pReport').textContent).then(()=>toast('Copied')).catch(()=>toast('Failed',1));
 
+$('dlChecklist').onclick=async()=>{
+  if(!S.job){toast('Parse a ticket first',1);return}
+  const r=await fetch('/api/checklist',{method:'POST',headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({job:S.job,engineer:$('cEng').value})});
+  if(!r.ok){toast('Failed to generate checklist',1);return}
+  const blob=await r.blob();
+  const url=URL.createObjectURL(blob);
+  const a=document.createElement('a');
+  a.href=url;a.download=`checklist_${S.job.ticket_number||'ticket'}.html`;
+  a.click();URL.revokeObjectURL(url);
+  toast('Checklist downloaded — open in browser and print to PDF');
+};
+
 $('logCase').onclick=async()=>{
   const ef=$('cErr').value.trim(),sol=$('cSol').value.trim();
   if(!ef||!sol){toast('Error and solution required.',1);return}
@@ -368,6 +386,31 @@ async function delKB(id){
   const r=await api('/api/knowledge/'+id,{method:'DELETE'});
   if(r.ok){toast('Deleted');doSearch();loadStats();}else toast(r.error||'Failed',1);
 }
+
+// Knowledge export/import
+$('kbExport').onclick=async()=>{
+  const r=await api('/api/knowledge/export',J({}));
+  if(r.error){toast(r.error,1);return}
+  const blob=new Blob([JSON.stringify(r,null,2)],{type:'application/json'});
+  const url=URL.createObjectURL(blob);
+  const a=document.createElement('a');a.href=url;a.download='fiars_knowledge_export.json';
+  a.click();URL.revokeObjectURL(url);
+  toast(`Exported ${r.count} entries`);
+};
+$('kbImportBtn').onclick=()=>$('kbImportFile').click();
+$('kbImportFile').onchange=async()=>{
+  const file=$('kbImportFile').files[0];if(!file)return;
+  try{
+    const text=await file.text();
+    const data=JSON.parse(text);
+    const entries=data.knowledge||data;
+    if(!Array.isArray(entries)){toast('Invalid format — expected {knowledge:[...]}',1);return}
+    const r=await api('/api/knowledge/import',J({knowledge:entries}));
+    if(r.ok){toast(`Imported: ${r.added} added, ${r.skipped} skipped`);doSearch();loadStats();}
+    else toast(r.error||'Import failed',1);
+  }catch(e){toast('Invalid JSON file',1);}
+  $('kbImportFile').value='';
+};
 
 // ══════ QUICK ADD ═══════════════════════════════════════════════════════
 $('addBtn').onclick=async()=>{
