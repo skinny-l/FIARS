@@ -1,0 +1,4 @@
+# FIARS core runs on the Python standard library only - nothing to install.
+# (Phase 4 semantic search will add the lines below; not needed for the MVP.)
+# sentence-transformers
+# faiss-cpu

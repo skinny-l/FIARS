@@ -1,0 +1,442 @@
+<!DOCTYPE html><html lang="en"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>FIARS</title>
+<style>
+:root{--bg:#0e1116;--p:#161b22;--p2:#1c232d;--ln:#2a3340;--ink:#e6edf3;--mt:#8b98a8;
+  --ac:#4cc2ff;--ok:#3fb950;--wn:#d29922;--er:#f85149;--br:#1f6feb;--kb:#a371f7}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:14px/1.5 -apple-system,system-ui,sans-serif}
+header{padding:12px 20px;border-bottom:1px solid var(--ln);display:flex;align-items:center;gap:12px}
+header h1{font-size:15px;margin:0} header .sub{color:var(--mt);font-size:11px}
+.tabs{display:flex;gap:0;border-bottom:1px solid var(--ln);background:var(--p);padding:0 16px;overflow-x:auto}
+.tab{padding:10px 16px;font-size:13px;cursor:pointer;color:var(--mt);border-bottom:2px solid transparent;font-weight:500;white-space:nowrap}
+.tab:hover{color:var(--ink)} .tab.on{color:var(--ac);border-color:var(--ac)}
+.pane{display:none;max-width:1080px;margin:0 auto;padding:16px 20px} .pane.on{display:block}
+.card{background:var(--p);border:1px solid var(--ln);border-radius:8px;padding:14px 16px;margin-bottom:12px}
+.card h2{font-size:11px;text-transform:uppercase;letter-spacing:.7px;color:var(--mt);margin:0 0 10px}
+label{display:block;font-size:12px;color:var(--mt);margin:8px 0 3px}
+input,textarea,select{width:100%;background:var(--p2);border:1px solid var(--ln);color:var(--ink);border-radius:6px;padding:7px 9px;font:inherit}
+textarea{resize:vertical;font-family:ui-monospace,monospace;font-size:12px}
+.r2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.r3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px}
+button{background:var(--br);color:#fff;border:0;border-radius:6px;padding:8px 14px;font:inherit;font-weight:600;cursor:pointer}
+button.gh{background:transparent;border:1px solid var(--ln);color:var(--ink)}
+button.sm{padding:4px 10px;font-size:12px}
+button.dn{background:#b62324} button:disabled{opacity:.4}
+.hidden{display:none}
+.toast{position:fixed;bottom:16px;left:50%;transform:translateX(-50%);background:#15351f;color:#fff;
+  padding:9px 16px;border-radius:7px;border:1px solid var(--ok);font-size:13px;z-index:99}
+.toast.err{background:#3a1a1a;border-color:var(--er)}
+table{width:100%;border-collapse:collapse;font-size:12.5px}
+th,td{text-align:left;padding:5px 7px;border-bottom:1px solid #20272f}
+th{color:var(--mt);font-size:11px;text-transform:uppercase;cursor:pointer;user-select:none}
+th:hover{color:var(--ink)}
+.badge{display:inline-block;padding:1px 8px;border-radius:12px;font-size:11px;font-weight:600}
+.b-ok{background:#15351f;color:var(--ok)} .b-wn{background:#3a2d12;color:var(--wn)}
+.b-kb{background:#1a1530;color:var(--kb)} .b-mt{background:#2a3340;color:var(--mt)}
+.kb-box{background:#1a1530;border:1px solid #3d2e6b;border-radius:7px;padding:10px 12px;margin-bottom:8px;font-size:13px}
+.kb-pat{color:var(--kb);font-family:monospace;font-weight:600}
+.kv{display:grid;grid-template-columns:120px 1fr;gap:3px 10px;font-size:13px}
+.kv .k{color:var(--mt)}
+.pager{display:flex;gap:6px;align-items:center;justify-content:center;margin-top:10px;font-size:13px}
+.pager button{padding:4px 10px}
+.pre{white-space:pre-wrap;font-family:monospace;font-size:12px;background:var(--p2);border:1px solid var(--ln);border-radius:6px;padding:10px}
+.stat{display:flex;gap:16px;font-size:13px;color:var(--mt);margin-bottom:8px;flex-wrap:wrap}
+.stat b{color:var(--ink)}
+.sr{padding:10px 12px;border-bottom:1px solid var(--ln)}
+.sr:hover{background:var(--p2)} .sr .cat{font-size:11px;color:var(--mt)}
+.sr .sol{color:var(--ok);font-size:12.5px;margin-top:2px}
+.si{position:relative} .si input{padding-left:28px}
+.si::before{content:"⌕";position:absolute;left:9px;top:50%;transform:translateY(-50%);color:var(--mt);font-size:15px}
+.sp{display:inline-block;width:12px;height:12px;border:2px solid rgba(255,255,255,.3);border-top-color:#fff;border-radius:50%;animation:sp .5s linear infinite;vertical-align:middle;margin-right:4px}
+@keyframes sp{to{transform:rotate(360deg)}}
+.dz{border:2px dashed var(--ln);border-radius:8px;padding:24px;text-align:center;color:var(--mt);cursor:pointer}
+.dz.over{border-color:var(--ac);color:var(--ink)}
+.actions{display:flex;gap:4px;margin-top:6px}
+</style></head><body>
+<header><h1>FIARS</h1><span class="sub" id="statBar">loading…</span></header>
+<div class="tabs" id="tabs">
+  <div class="tab on" data-t="parse">Parse Ticket</div>
+  <div class="tab" data-t="search">Knowledge Base</div>
+  <div class="tab" data-t="add">Quick Add</div>
+  <div class="tab" data-t="cases">Case History</div>
+  <div class="tab" data-t="dumps">Raw Dumps</div>
+</div>
+
+<!-- ═══ PARSE TICKET (MAIN) ═══ -->
+<div class="pane on" id="p-parse">
+  <div class="card">
+    <div class="r2" style="align-items:end">
+      <div><label>Ticket number</label><input id="pTicket" placeholder="SHGD0002014119"></div>
+      <div><label>Paste fault description block</label>
+        <textarea id="pRaw" rows="5" placeholder="Paste the raw fault block here…"></textarea></div>
+    </div>
+    <div style="margin-top:10px"><button id="parseBtn">Parse &amp; diagnose</button></div>
+  </div>
+
+  <div id="parseOut" class="hidden">
+    <!-- SOLUTION + REPORT (TOP PRIORITY) -->
+    <div class="r2">
+      <div class="card">
+        <h2>Recommended solution</h2>
+        <div id="pSolution" style="font-size:13px">No matching solutions in knowledge base yet.</div>
+      </div>
+      <div class="card">
+        <h2>Report <button class="gh sm" id="copyReport" style="float:right">Copy</button></h2>
+        <div id="pReport" class="pre"></div>
+      </div>
+    </div>
+
+    <!-- KB PATTERN MATCHES -->
+    <div id="pKB"></div>
+
+    <!-- RELATED KNOWLEDGE -->
+    <div id="pKBR"></div>
+
+    <!-- PARSED DETAILS -->
+    <div class="card">
+      <h2>Parsed ticket details</h2>
+      <div class="r2"><div class="kv" id="pDet1"></div><div class="kv" id="pDet2"></div></div>
+    </div>
+
+    <!-- LOG CASE (bottom) -->
+    <div class="card">
+      <h2>Log this case</h2>
+      <div class="r3">
+        <div><label>Error/Fault *</label><input id="cErr"></div>
+        <div><label>Parts</label><input id="cParts"></div>
+        <div><label>Solution *</label><input id="cSol"></div>
+      </div>
+      <div class="r3">
+        <div><label>Engineer</label><input id="cEng"></div>
+        <div><label>Time (min)</label><input id="cTime" type="number" min="0"></div>
+        <div><label>Notes</label><input id="cNotes"></div>
+      </div>
+      <div style="margin-top:10px"><button id="logCase">Save case</button></div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ KNOWLEDGE BASE ═══ -->
+<div class="pane" id="p-search">
+  <div class="card">
+    <div class="si"><input id="sQ" placeholder="Search errors, parts, solutions…"></div>
+  </div>
+  <div id="sResults"></div>
+  <div id="sEmpty" class="hidden" style="text-align:center;color:var(--mt);padding:30px">No results.</div>
+</div>
+
+<!-- ═══ QUICK ADD ═══ -->
+<div class="pane" id="p-add">
+  <div class="card">
+    <h2>Add to knowledge base</h2>
+    <div class="r2">
+      <div><label>Error / Fault *</label><input id="aErr" placeholder="e.g. ECC_Error"></div>
+      <div><label>Category</label><select id="aCat"><option value="">—</option>
+        <option>Fan</option><option>PSU</option><option>Motherboard</option><option>CPU</option>
+        <option>Memory</option><option>Storage</option><option>Battery</option><option>BIOS</option>
+        <option>Firmware</option><option>Power</option><option>Network</option><option>Thermal</option>
+        <option>System</option><option>Other</option></select></div>
+    </div>
+    <label>Fault Description *</label><textarea id="aDesc" rows="2" placeholder="What the error looks like"></textarea>
+    <label>Affected Part(s)</label><input id="aParts" placeholder="e.g. CPU, Motherboard">
+    <label>Root Cause</label><input id="aRC">
+    <label>Solution / Fix *</label><textarea id="aSol" rows="3" placeholder="Step-by-step fix"></textarea>
+    <div class="r2">
+      <div><label>Source</label><input id="aSrc"></div>
+      <div><label>Engineer</label><input id="aEng"></div>
+    </div>
+    <label>Notes</label><input id="aNotes">
+    <div style="margin-top:12px"><button id="addBtn">Save to knowledge base</button></div>
+  </div>
+</div>
+
+<!-- ═══ CASE HISTORY ═══ -->
+<div class="pane" id="p-cases">
+  <div class="card">
+    <div class="r2">
+      <div class="si"><input id="caseQ" placeholder="Search cases…"></div>
+      <div style="text-align:right"><button class="gh sm" id="exportBtn">Export JSON</button></div>
+    </div>
+  </div>
+  <div style="overflow-x:auto">
+    <table id="caseTable">
+      <thead><tr><th data-s="id">#</th><th data-s="date">Date</th><th data-s="ticket_number">Ticket</th>
+        <th data-s="error_fault">Error</th><th data-s="parts">Parts</th>
+        <th data-s="solution">Solution</th><th data-s="engineer">Eng</th></tr></thead>
+      <tbody id="caseTb"></tbody>
+    </table>
+  </div>
+  <div class="pager" id="casePg"></div>
+</div>
+
+<!-- ═══ RAW DUMPS ═══ -->
+<div class="pane" id="p-dumps">
+  <div class="card">
+    <h2>Upload raw fault data</h2>
+    <div id="dz" class="dz">Drop files here or click to upload<br>
+      <span style="font-size:11px">.txt .log .csv .json .eml .html .pdf</span>
+      <input type="file" id="fileIn" multiple style="display:none">
+    </div>
+  </div>
+  <div id="dumpList"></div>
+</div>
+
+<!-- ═══ EDIT MODAL ═══ -->
+<div id="editModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:50;align-items:center;justify-content:center">
+  <div class="card" style="width:600px;max-height:90vh;overflow-y:auto">
+    <h2>Edit knowledge entry <button class="gh sm" style="float:right" onclick="$('editModal').style.display='none'">✕</button></h2>
+    <input id="eId" type="hidden">
+    <div class="r2">
+      <div><label>Error code</label><input id="eErr"></div>
+      <div><label>Category</label><input id="eCat"></div>
+    </div>
+    <label>Description *</label><textarea id="eDesc" rows="2"></textarea>
+    <label>Parts</label><input id="eParts">
+    <label>Root cause</label><input id="eRC">
+    <label>Solution *</label><textarea id="eSol" rows="3"></textarea>
+    <label>Source</label><input id="eSrc">
+    <label>Notes</label><input id="eNotes">
+    <div style="margin-top:12px;display:flex;gap:8px">
+      <button id="eSaveBtn">Save changes</button>
+      <button class="dn sm" id="eDelBtn">Delete</button>
+    </div>
+  </div>
+</div>
+
+<script>
+const $=id=>document.getElementById(id);
+let S={job:null,draft:null,cp:1,cs:'id',cd:'DESC'};
+
+async function api(p,o){try{const r=await fetch(p,o);const j=await r.json();if(!r.ok&&!j.error)j.error='Error '+r.status;return j}catch(e){return{error:'Connection failed: '+e.message}}}
+function toast(m,e){const t=document.createElement('div');t.className='toast'+(e?' err':'');t.textContent=m;document.body.appendChild(t);setTimeout(()=>t.remove(),3e3)}
+function esc(s){return(s||'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]))}
+function J(b){return{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(b)}}
+
+// Tabs
+document.querySelectorAll('.tab').forEach(t=>t.onclick=()=>{
+  document.querySelectorAll('.tab').forEach(x=>x.classList.remove('on'));
+  document.querySelectorAll('.pane').forEach(x=>x.classList.remove('on'));
+  t.classList.add('on');$('p-'+t.dataset.t).classList.add('on');
+  if(t.dataset.t==='cases')loadCases();if(t.dataset.t==='dumps')loadDumps();
+});
+
+async function loadStats(){
+  const s=await api('/api/stats');if(s.error)return;
+  $('statBar').textContent=`Knowledge: ${s.knowledge} · Cases: ${s.cases} · KB patterns: ${s.kb_patterns} · Dumps: ${s.raw_dumps}`;
+}
+loadStats();
+
+// ══════ PARSE TICKET ════════════════════════════════════════════════════
+$('parseBtn').onclick=async()=>{
+  const btn=$('parseBtn');btn.disabled=true;btn.innerHTML='<span class="sp"></span>Parsing…';
+  const r=await api('/api/parse',J({raw:$('pRaw').value,ticket_number:$('pTicket').value}));
+  btn.disabled=false;btn.textContent='Parse & diagnose';
+  if(r.error){toast(r.error,1);return}
+  S.job=r.job;S.draft=r.draft;$('parseOut').classList.remove('hidden');
+
+  // Solution (TOP)
+  const sol=$('pSolution');
+  if(r.kb_results&&r.kb_results.length){
+    const top=r.kb_results[0];
+    sol.innerHTML=`<div style="margin-bottom:8px"><span class="badge b-ok">${esc(top.category)}</span>
+      <b>${esc(top.error_code||'')}</b></div>
+      <div style="margin-bottom:6px">${esc(top.fault_description)}</div>
+      ${top.root_cause?`<div style="color:var(--mt);margin-bottom:4px"><b>Root cause:</b> ${esc(top.root_cause)}</div>`:''}
+      <div style="color:var(--ok)"><b>Solution:</b> ${esc(top.solution)}</div>
+      ${top.affected_parts?`<div style="color:var(--mt);margin-top:4px"><b>Parts:</b> ${esc(top.affected_parts)}</div>`:''}
+      ${r.kb_results.length>1?`<div style="margin-top:8px;border-top:1px solid var(--ln);padding-top:6px;font-size:12px;color:var(--mt)">
+        +${r.kb_results.length-1} more matches — see Related Knowledge below</div>`:''}`;
+  } else {
+    sol.innerHTML='<div style="color:var(--mt)">No matching solutions yet. After you solve this, add it to the knowledge base.</div>';
+  }
+
+  // Report (TOP)
+  $('pReport').textContent=r.report;
+
+  // KB pattern matches
+  const pk=$('pKB');pk.innerHTML='';
+  (r.kb_matches||[]).forEach(m=>{
+    pk.innerHTML+=`<div class="kb-box"><span class="kb-pat">${esc(m.error_pattern)}</span>
+      → ${esc(m.power_rail||'')}<br>Suspects: <b>${(m.suspect_components||[]).join(', ')}</b>
+      ${m.dimm_slots&&m.dimm_slots.length?'<br>DIMMs: '+m.dimm_slots.join(', '):''}
+      ${m.article?'<br><span style="color:var(--mt)">'+esc(m.article.suggestions||m.article.solution||'')+'</span>':''}</div>`;
+  });
+
+  // Related knowledge
+  const pkr=$('pKBR');pkr.innerHTML='';
+  if(r.kb_results&&r.kb_results.length>1){
+    pkr.innerHTML='<div class="card"><h2>Related knowledge</h2>'+r.kb_results.slice(1,6).map(k=>
+      `<div style="padding:6px 0;border-bottom:1px solid var(--ln);font-size:13px">
+        <span class="badge b-mt">${esc(k.category||'')}</span> <b>${esc(k.error_code||'')}</b>
+        ${esc(k.fault_description.slice(0,60))}<div class="sol">${esc(k.solution.slice(0,100))}</div></div>`
+    ).join('')+'</div>';
+  }
+
+  // Parsed details
+  const j=r.job;
+  $('pDet1').innerHTML=[['Ticket',j.ticket_number],['SN',j.server_sn],['Location',j.location_full],
+    ['Model',j.server_model],['Vendor',j.manufacturer]].filter(p=>p[1]).map(
+    p=>`<div class="k">${p[0]}</div><div>${esc(String(p[1]))}</div>`).join('');
+  $('pDet2').innerHTML=[['Category',j.category],['Type',j.fault_type],['Description',j.fault_description],
+    ['Detail',j.fault_detail],['Part',j.part_model],['Slot',(j.part||{}).position]].filter(p=>p[1]).map(
+    p=>`<div class="k">${p[0]}</div><div>${esc(String(p[1]))}</div>`).join('');
+
+  // Prefill case log
+  $('cErr').value=j.fault_description||'';
+  $('cParts').value=(j.part||{}).type||'';
+  $('cSol').value=(r.kb_results&&r.kb_results[0])?r.kb_results[0].solution:'';
+  const cfg=await api('/api/config');if(cfg.engineer_name)$('cEng').value=cfg.engineer_name;
+  $('parseOut').scrollIntoView({behavior:'smooth'});
+};
+
+$('copyReport').onclick=()=>navigator.clipboard.writeText($('pReport').textContent).then(()=>toast('Copied')).catch(()=>toast('Failed',1));
+
+$('logCase').onclick=async()=>{
+  const ef=$('cErr').value.trim(),sol=$('cSol').value.trim();
+  if(!ef||!sol){toast('Error and solution required.',1);return}
+  const j=S.job||{};
+  const r=await api('/api/cases',J({ticket_number:j.ticket_number||$('pTicket').value,
+    date:S.draft?S.draft.date:'',server_sn:j.server_sn||'',location:j.location_full||'',
+    error_fault:ef,parts:$('cParts').value,solution:sol,engineer:$('cEng').value,
+    notes:$('cNotes').value,resolution_time_min:parseInt($('cTime').value)||null,
+    report_text:$('pReport').textContent,raw_block:j.raw||''}));
+  if(r.ok){toast('Case #'+r.id+' saved');$('parseOut').classList.add('hidden');
+    $('pRaw').value='';$('pTicket').value='';loadStats();}
+  else toast(r.error||'Failed',1);
+};
+
+// ══════ KNOWLEDGE BASE ════════════════════════════════════════════════
+let sT;$('sQ').oninput=()=>{clearTimeout(sT);sT=setTimeout(doSearch,250)};
+async function doSearch(){
+  const q=$('sQ').value.trim();
+  const r=await api('/api/knowledge?q='+encodeURIComponent(q));
+  if(r.error){toast(r.error,1);return}
+  const el=$('sResults');
+  if(!r.results.length){el.innerHTML='';$('sEmpty').classList.remove('hidden');return}
+  $('sEmpty').classList.add('hidden');
+  el.innerHTML=r.results.map(k=>`<div class="sr">
+    <div style="cursor:pointer" onclick="this.nextElementSibling.classList.toggle('hidden')">
+      <span class="badge b-mt">${esc(k.category||'—')}</span> <b>${esc(k.error_code||k.fault_description.slice(0,50))}</b>
+      <div class="sol">${esc(k.solution.slice(0,120))}</div></div>
+    <div class="hidden" style="margin-top:8px;font-size:12.5px">
+      <div class="kv">
+        ${k.error_code?`<div class="k">Error</div><div>${esc(k.error_code)}</div>`:''}
+        <div class="k">Description</div><div>${esc(k.fault_description)}</div>
+        ${k.affected_parts?`<div class="k">Parts</div><div>${esc(k.affected_parts)}</div>`:''}
+        ${k.root_cause?`<div class="k">Root cause</div><div>${esc(k.root_cause)}</div>`:''}
+        <div class="k">Solution</div><div>${esc(k.solution)}</div>
+        ${k.source?`<div class="k">Source</div><div>${esc(k.source)}</div>`:''}
+      </div>
+      <div class="actions">
+        <button class="gh sm" onclick="openEdit(${k.id})">Edit</button>
+        <button class="dn sm" onclick="if(confirm('Delete this entry?'))delKB(${k.id})">Delete</button>
+      </div>
+    </div>
+  </div>`).join('');
+}
+
+async function openEdit(id){
+  if(!id)return;
+  const k=await api('/api/knowledge/'+id);
+  if(k.error||!k.id){toast(k.error||'Entry not found',1);return}
+  $('eId').value=id;$('eErr').value=k.error_code||'';$('eCat').value=k.category||'';
+  $('eDesc').value=k.fault_description||'';$('eParts').value=k.affected_parts||'';
+  $('eRC').value=k.root_cause||'';$('eSol').value=k.solution||'';
+  $('eSrc').value=k.source||'';$('eNotes').value=k.notes||'';
+  $('editModal').style.display='flex';
+}
+$('eSaveBtn').onclick=async()=>{
+  const id=$('eId').value;
+  if(!id){toast('No entry selected',1);return}
+  const r=await api('/api/knowledge/'+id,{method:'PUT',headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({error_code:$('eErr').value,category:$('eCat').value,
+      fault_description:$('eDesc').value,affected_parts:$('eParts').value,
+      root_cause:$('eRC').value,solution:$('eSol').value,
+      source:$('eSrc').value,notes:$('eNotes').value})});
+  if(r.ok){toast('Updated');$('editModal').style.display='none';doSearch();}
+  else toast(r.error||'Failed',1);
+};
+$('eDelBtn').onclick=async()=>{
+  if(!confirm('Delete this entry permanently?'))return;
+  const id=$('eId').value;if(!id)return;
+  const r=await api('/api/knowledge/'+id,{method:'DELETE'});
+  if(r.ok){toast('Deleted');$('editModal').style.display='none';doSearch();loadStats();}
+  else toast(r.error||'Failed',1);
+};
+async function delKB(id){
+  const r=await api('/api/knowledge/'+id,{method:'DELETE'});
+  if(r.ok){toast('Deleted');doSearch();loadStats();}else toast(r.error||'Failed',1);
+}
+
+// ══════ QUICK ADD ═══════════════════════════════════════════════════════
+$('addBtn').onclick=async()=>{
+  const desc=$('aDesc').value.trim(),sol=$('aSol').value.trim();
+  if(!desc||!sol){toast('Description and solution required.',1);return}
+  $('addBtn').disabled=true;
+  const r=await api('/api/knowledge',J({category:$('aCat').value,error_code:$('aErr').value.trim(),
+    fault_description:desc,affected_parts:$('aParts').value.trim(),root_cause:$('aRC').value.trim(),
+    solution:sol,source:$('aSrc').value.trim(),engineer:$('aEng').value.trim(),notes:$('aNotes').value.trim()}));
+  $('addBtn').disabled=false;
+  if(r.ok){toast('Saved #'+r.id);['aErr','aDesc','aParts','aRC','aSol','aSrc','aNotes'].forEach(i=>$(i).value='');$('aCat').value='';loadStats();}
+  else toast(r.error||'Failed',1);
+};
+
+// ══════ CASE HISTORY ════════════════════════════════════════════════════
+let cT;$('caseQ').oninput=()=>{clearTimeout(cT);S.cp=1;cT=setTimeout(loadCases,300)};
+document.querySelectorAll('#caseTable th[data-s]').forEach(th=>th.onclick=()=>{
+  if(S.cs===th.dataset.s)S.cd=S.cd==='DESC'?'ASC':'DESC';else{S.cs=th.dataset.s;S.cd='DESC';}loadCases();});
+
+async function loadCases(){
+  const r=await api(`/api/cases?page=${S.cp}&q=${encodeURIComponent($('caseQ').value)}&sort=${S.cs}&dir=${S.cd}`);
+  if(r.error)return;
+  const tb=$('caseTb');
+  if(!r.cases.length){tb.innerHTML='<tr><td colspan="7" style="color:var(--mt);text-align:center;padding:20px">No cases.</td></tr>';}
+  else{tb.innerHTML=r.cases.map(c=>`<tr><td>${c.id}</td><td>${esc(c.date||'')}</td>
+    <td>${esc(c.ticket_number||'')}</td><td>${esc((c.error_fault||'').slice(0,40))}</td>
+    <td>${esc(c.parts||'')}</td><td>${esc((c.solution||'').slice(0,40))}</td>
+    <td>${esc(c.engineer||'')}</td></tr>`).join('');}
+  $('casePg').innerHTML=`<button class="gh sm" ${r.page<=1?'disabled':''} onclick="S.cp=${r.page-1};loadCases()">←</button>
+    <span>${r.page}/${r.pages} (${r.total})</span>
+    <button class="gh sm" ${r.page>=r.pages?'disabled':''} onclick="S.cp=${r.page+1};loadCases()">→</button>`;
+}
+$('exportBtn').onclick=async()=>{const r=await api('/api/export');toast(r.ok?'Exported: '+r.file:'Failed',!r.ok)};
+
+// ══════ RAW DUMPS ═══════════════════════════════════════════════════════
+const dz=$('dz'),fi=$('fileIn');
+dz.onclick=()=>fi.click();
+dz.ondragover=e=>{e.preventDefault();dz.classList.add('over')};
+dz.ondragleave=()=>dz.classList.remove('over');
+dz.ondrop=async e=>{e.preventDefault();dz.classList.remove('over');await upFiles(e.dataTransfer.files)};
+fi.onchange=async()=>{await upFiles(fi.files);fi.value=''};
+
+async function upFiles(files){
+  for(const f of files){
+    const fd=new FormData();fd.append('file',f);
+    const r=await fetch('/api/upload',{method:'POST',body:fd}).then(r=>r.json()).catch(e=>({error:e.message}));
+    if(r.ok)toast(`${r.filename}: ${r.text_length} chars`);else toast(r.error||'Failed',1);
+  }
+  loadDumps();loadStats();
+}
+async function loadDumps(){
+  const r=await api('/api/raw_dumps');if(r.error)return;
+  const el=$('dumpList');
+  if(!r.dumps.length){el.innerHTML='<div style="color:var(--mt);text-align:center;padding:20px">No uploads.</div>';return}
+  el.innerHTML=r.dumps.map(d=>`<div class="card" style="cursor:pointer" onclick="this.querySelector('.xt').classList.toggle('hidden')">
+    <div style="display:flex;justify-content:space-between"><div><b>${esc(d.filename)}</b>
+      <span class="badge ${d.status==='extracted'?'b-ok':'b-wn'}">${d.status}</span></div>
+      <span style="color:var(--mt);font-size:11px">${esc(d.created_at||'')}</span></div>
+    <div class="xt hidden" style="margin-top:8px">
+      <pre style="max-height:200px;overflow:auto;font-size:11px;background:var(--p2);padding:8px;border-radius:4px">${esc((d.extracted_text||'').slice(0,2000))}</pre>
+      <button class="gh sm" style="margin-top:6px" onclick="event.stopPropagation();toKB(${d.id})">Convert to KB entry</button></div>
+  </div>`).join('');
+}
+async function toKB(id){
+  const r=await api('/api/raw_dump/'+id);if(!r||r.error)return;
+  document.querySelector('[data-t="add"]').click();$('aDesc').value=(r.extracted_text||'').slice(0,500);
+  toast('Prefilled — edit and save.');
+}
+
+// Init
+(async()=>{const c=await api('/api/config');if(c.engineer_name){$('aEng').value=c.engineer_name;$('cEng').value=c.engineer_name}})();
+</script></body></html>
