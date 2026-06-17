@@ -1,35 +1,27 @@
 """
 smart_search.py — Intelligent fault-to-solution matching.
 
-Given a free-text problem description (like an engineer would describe it),
-finds the most relevant knowledge entries using multiple strategies:
-
-1. Error code extraction — regex pulls known patterns (SMART, ECC, IERR, etc.)
-2. Synonym expansion — "disk making noise" → also searches "HDD", "drive", "storage"
-3. Category inference — keywords map to fault categories
-4. Multi-query FTS — runs expanded queries, deduplicates, ranks by match count
+Strategies:
+1. Error code extraction (SMART, ECC, IERR, Xid, PV*_FAULT, etc.)
+2. Synonym expansion (disk→HDD→drive→storage, but NOT generic words)
+3. Category inference + strong category bias
+4. Multi-query FTS with dedup and ranked scoring
 """
-
 from __future__ import annotations
 import re
 from typing import Any
 
-# ── Synonym groups: any word in a group matches all others ──────────────
+# Synonym groups — ONLY component/hardware terms, NOT generic words
 _SYNONYM_GROUPS = [
     {"disk", "drive", "hdd", "ssd", "nvme", "storage", "raid", "hard"},
-    {"memory", "dimm", "ram", "ecc", "ddr"},
-    {"cpu", "processor", "socket", "core"},
+    {"memory", "dimm", "ram", "ddr"},
+    {"cpu", "processor", "socket"},
     {"fan", "cooling", "thermal", "temperature", "heat", "overheat"},
-    {"power", "psu", "voltage", "watt"},
-    {"network", "nic", "ethernet", "link", "port", "cable"},
+    {"power", "psu", "voltage"},
+    {"network", "nic", "ethernet", "cable"},
     {"motherboard", "mainboard", "board", "backplane"},
-    {"bios", "cmos", "firmware", "bmc", "post", "uefi"},
-    {"error", "fault", "failure", "failed", "broken", "bad", "dead"},
-    {"slow", "degraded", "reduced", "performance", "latency"},
-    {"crash", "hang", "freeze", "lockup", "reboot", "restart"},
-    {"noise", "vibration", "clicking", "grinding"},
-    {"replace", "swap", "reseat", "reinstall"},
-    {"missing", "not detected", "unrecognized", "disappeared"},
+    {"bios", "cmos", "firmware", "bmc", "uefi"},
+    {"gpu", "cuda", "nvidia", "vbios", "xid"},
 ]
 
 _WORD_TO_SYNONYMS: dict[str, set[str]] = {}
@@ -37,65 +29,71 @@ for group in _SYNONYM_GROUPS:
     for word in group:
         _WORD_TO_SYNONYMS[word] = group
 
-# ── Error code patterns (regex) ─────────────────────────────────────────
+# Error code patterns
 _ERROR_PATTERNS = [
     re.compile(r"\bSMART\b", re.I),
     re.compile(r"\bECC\b", re.I),
     re.compile(r"\bIERR\b", re.I),
     re.compile(r"\bMCE\b", re.I),
     re.compile(r"\bUCE\b", re.I),
-    re.compile(r"\bFRB2\b", re.I),
     re.compile(r"\bUPI\b", re.I),
-    re.compile(r"\bPOST\b", re.I),
     re.compile(r"\bRAID\b", re.I),
     re.compile(r"\bNVMe\b", re.I),
     re.compile(r"\bBMC\b", re.I),
     re.compile(r"\bUEFI\b", re.I),
-    re.compile(r"\bGPT\b", re.I),
-    re.compile(r"PV[A-Z_]+_FAULT\b", re.I),      # Power_Fault patterns
-    re.compile(r"BAC\d+", re.I),                    # Fan error codes
-    re.compile(r"P3V_BAT", re.I),                   # Battery
-    re.compile(r"IOError\w*", re.I),                 # Disk IO errors
-    re.compile(r"BadSector\w*", re.I),               # Disk sector errors
-    re.compile(r"Reallocated\w*", re.I),             # Disk SMART
+    re.compile(r"\bEDAC\b", re.I),
+    re.compile(r"\bDPC\b", re.I),
+    re.compile(r"\bXid\b", re.I),
+    re.compile(r"PV[A-Z_]+_FAULT\b", re.I),
+    re.compile(r"BAC\d+", re.I),
+    re.compile(r"P3V_BAT", re.I),
+    re.compile(r"IOError\w*", re.I),
+    re.compile(r"BadSector\w*", re.I),
+    re.compile(r"Reallocated\w*", re.I),
+    re.compile(r"xid\s*\d+", re.I),
 ]
 
-# ── Category keywords ───────────────────────────────────────────────────
 _CATEGORY_MAP = {
     "CPU": ["cpu", "processor", "ierr", "mce", "socket", "core", "throttl"],
-    "Memory": ["memory", "dimm", "ram", "ecc", "uce", "ddr"],
+    "Memory": ["memory", "dimm", "ram", "ecc", "uce", "ddr", "edac"],
     "Storage": ["disk", "drive", "hdd", "ssd", "nvme", "raid", "smart", "storage", "mdisk"],
-    "Network": ["network", "nic", "ethernet", "link", "cable", "port", "latency"],
-    "Power": ["power", "psu", "voltage", "watt", "supply"],
+    "Network": ["network", "nic", "ethernet", "link", "cable", "port", "latency", "pcie", "ocp"],
+    "Power": ["power", "psu", "voltage", "watt"],
     "Thermal": ["fan", "thermal", "temperature", "heat", "cool", "overheat"],
     "BIOS": ["bios", "cmos", "post", "uefi", "gpt", "boot"],
-    "Firmware": ["firmware", "bmc", "update"],
+    "Firmware": ["firmware", "bmc"],
     "Motherboard": ["motherboard", "board", "backplane"],
     "System": ["crash", "hang", "lockup", "reboot", "freeze"],
+    "GPU": ["gpu", "cuda", "nvidia", "xid", "vbios", "retimer", "riser"],
 }
+
+# Stop words — never expand or search these
+_STOP = {"the", "is", "has", "was", "are", "been", "have", "had", "off", "on", "of",
+         "and", "or", "not", "for", "from", "with", "this", "that", "in", "to", "it",
+         "at", "by", "an", "be", "as", "do", "if", "no", "so", "up", "log", "status",
+         "diff", "pid", "name", "none", "tags"}
 
 
 def extract_error_codes(text: str) -> list[str]:
-    """Pull recognizable error codes/patterns from free text."""
     codes = []
     for pat in _ERROR_PATTERNS:
         for m in pat.finditer(text):
             codes.append(m.group(0))
-    return list(dict.fromkeys(codes))  # dedupe, keep order
+    return list(dict.fromkeys(codes))
 
 
 def expand_synonyms(words: list[str]) -> list[str]:
-    """Given a list of words, add synonyms from known groups."""
     expanded = set(words)
     for w in words:
         wl = w.lower()
+        if wl in _STOP:
+            continue
         if wl in _WORD_TO_SYNONYMS:
             expanded.update(_WORD_TO_SYNONYMS[wl])
     return list(expanded)
 
 
 def infer_categories(text: str) -> list[str]:
-    """Guess which fault categories a description relates to."""
     tl = text.lower()
     cats = []
     for cat, keywords in _CATEGORY_MAP.items():
@@ -104,50 +102,47 @@ def infer_categories(text: str) -> list[str]:
     return cats
 
 
-def build_search_queries(text: str) -> list[str]:
-    """
-    Turn a free-text problem description into multiple search queries.
-    Returns a list of queries ordered from most specific to most general.
-    """
+def build_search_queries(text: str, parsed_category: str = "") -> list[str]:
     queries = []
-
-    # 1. Error codes (most specific)
     codes = extract_error_codes(text)
     if codes:
         queries.append(" ".join(codes))
 
-    # 2. Original words + synonyms
-    words = [w for w in re.findall(r"[A-Za-z0-9_]+", text) if len(w) > 1]
+    # Category-specific query (strongest signal)
+    if parsed_category and parsed_category != "Other":
+        queries.append(parsed_category)
+
+    # Clean words (no stop words, no short tokens)
+    words = [w for w in re.findall(r"[A-Za-z0-9_]+", text)
+             if len(w) > 2 and w.lower() not in _STOP]
     if words:
         expanded = expand_synonyms(words)
-        queries.append(" ".join(expanded))
+        # Remove stop words from expanded set too
+        expanded = [w for w in expanded if w.lower() not in _STOP and len(w) > 2]
+        queries.append(" ".join(expanded[:30]))  # cap to avoid massive queries
 
-    # 3. Category-based
     cats = infer_categories(text)
     if cats:
         queries.append(" ".join(cats))
 
-    # 4. Original text as fallback
     if words:
-        queries.append(" ".join(words))
+        queries.append(" ".join(words[:20]))
 
     return queries
 
 
-def smart_search(db_module, db_path: str, text: str, limit: int = 10) -> list[dict[str, Any]]:
-    """
-    Multi-strategy search: run multiple queries, deduplicate, rank by
-    how many strategies matched each result.
-    """
-    queries = build_search_queries(text)
+def smart_search(db_module, db_path: str, text: str, limit: int = 10,
+                 parsed_category: str = "") -> list[dict[str, Any]]:
+    """Multi-strategy search with category bias."""
+    queries = build_search_queries(text, parsed_category)
     if not queries:
         return db_module.search_knowledge(db_path, "", limit=limit)
 
-    seen: dict[int, dict] = {}      # id → entry
-    scores: dict[int, float] = {}   # id → score
+    seen: dict[int, dict] = {}
+    scores: dict[int, float] = {}
 
     for priority, query in enumerate(queries):
-        weight = 1.0 / (1 + priority)  # earlier queries are more specific
+        weight = 1.0 / (1 + priority)
         results = db_module.search_knowledge(db_path, query, limit=limit * 2)
         for rank, entry in enumerate(results):
             eid = entry["id"]
@@ -156,6 +151,12 @@ def smart_search(db_module, db_path: str, text: str, limit: int = 10) -> list[di
                 scores[eid] = 0.0
             scores[eid] += weight / (1 + rank)
 
-    # Sort by combined score
+    # Category bias: boost entries matching the parsed category
+    if parsed_category and parsed_category != "Other":
+        cat_lower = parsed_category.lower()
+        for eid, entry in seen.items():
+            if (entry.get("category") or "").lower() == cat_lower:
+                scores[eid] *= 3.0  # Strong boost for exact category match
+
     ranked = sorted(seen.keys(), key=lambda x: scores[x], reverse=True)
     return [seen[eid] for eid in ranked[:limit]]
