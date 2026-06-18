@@ -140,6 +140,14 @@ def parse_ticket(raw: str, ticket_number: str = "") -> dict[str, Any]:
         "firmware":     g("firmware_version", ""),
         "backplane":    g("backplane_number", ""),
     }
+
+    # NVMe location logic: fault_part (e.g. "nvme8n2") is the physical
+    # identifier, not part_position (which is the PCIe address).
+    fault_part = g("fault_part", "")
+    if part["type"].upper() in ("NVME", "SSD") and fault_part:
+        part["pcie_address"] = part["position"]  # keep PCIe addr for reference
+        part["position"] = fault_part             # use device name as location
+
     part_model = " ".join(x for x in (part["manufacturer"], part["size"]) if x)
 
     fault_description = g("fault description", "") or g("fault_description", "")
