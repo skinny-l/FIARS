@@ -13,6 +13,8 @@ from fiars.config import load_config
 from fiars.parser import parse_ticket, parse_multi_ticket, search_text
 from fiars.report import build_report, default_draft
 from fiars.smart_search import smart_search
+from fiars.diagnostics import get_diagnostics
+from fiars.bulk_parse import parse_bulk
 
 CFG = load_config()
 HERE = os.path.dirname(os.path.abspath(__file__))
@@ -32,7 +34,7 @@ def startup():
     print(f"  Database: {status}")
 
     # Auto-load KB + confirmed solutions
-    for script in ("load_kb_power_fault.py", "load_confirmed_solutions.py", "load_server_fault_kb.py", "load_sa5212d6_faults.py", "load_gpu_faults.py"):
+    for script in ("load_kb_power_fault.py", "load_confirmed_solutions.py", "load_server_fault_kb.py", "load_sa5212d6_faults.py", "load_gpu_faults.py", "load_reference_data.py"):
         path = os.path.join(HERE, "scripts", script)
         if os.path.exists(path):
             try:
@@ -178,9 +180,16 @@ class Handler(BaseHTTPRequestHandler):
                     kb_matches = db.kb_pattern_lookup(CFG["db_path"], job.get("raw", raw))
                     kb_results = smart_search(db, CFG["db_path"], query,
                                               parsed_category=job.get("category", ""))
+                    diag = get_diagnostics(job.get("category", ""))
+                    parts_to_bring = []
+                    if kb_results:
+                        p = kb_results[0].get("affected_parts", "")
+                        if p:
+                            parts_to_bring = [x.strip() for x in p.split(",") if x.strip()]
                     results.append({"job": job, "draft": draft,
                         "report": build_report(draft),
-                        "kb_matches": kb_matches, "kb_results": kb_results[:10]})
+                        "kb_matches": kb_matches, "kb_results": kb_results[:10],
+                        "diagnostics": diag, "parts_to_bring": parts_to_bring})
                 # Single block: return flat (backwards compatible)
                 if len(results) == 1:
                     return self._json(200, results[0])
@@ -195,6 +204,34 @@ class Handler(BaseHTTPRequestHandler):
             if path == "/api/knowledge/export":
                 results = db.search_knowledge(CFG["db_path"], "", limit=9999)
                 return self._json(200, {"knowledge": results, "count": len(results)})
+
+            if path == "/api/knowledge/bulk_preview":
+                b = self._body()
+                entries = parse_bulk(b.get("text", ""), b.get("category", ""),
+                                     b.get("format", "auto"))
+                return self._json(200, {"entries": entries, "count": len(entries)})
+
+            if path == "/api/knowledge/bulk_import":
+                b = self._body()
+                entries = parse_bulk(b.get("text", ""), b.get("category", ""),
+                                     b.get("format", "auto"))
+                added, skipped = 0, 0
+                for e in entries:
+                    if not e.get("fault_description") or not e.get("solution"):
+                        skipped += 1
+                        continue
+                    if e.get("error_code"):
+                        con = db.connect(CFG["db_path"])
+                        exists = con.execute("SELECT 1 FROM knowledge WHERE error_code=?",
+                            (e["error_code"],)).fetchone()
+                        con.close()
+                        if exists:
+                            skipped += 1
+                            continue
+                    db.add_knowledge(CFG["db_path"], e)
+                    added += 1
+                return self._json(200, {"ok": True, "added": added,
+                    "skipped": skipped, "total": len(entries)})
 
             if path == "/api/knowledge/import":
                 b = self._body()

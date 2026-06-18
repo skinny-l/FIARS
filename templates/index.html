@@ -53,10 +53,44 @@ th:hover{color:var(--ink)}
 .dz{border:2px dashed var(--ln);border-radius:8px;padding:24px;text-align:center;color:var(--mt);cursor:pointer}
 .dz.over{border-color:var(--ac);color:var(--ink)}
 .actions{display:flex;gap:4px;margin-top:6px}
+/* Checklist */
+.cl{width:100%;border-collapse:collapse;font-size:11.5px}
+.cl th,.cl td{border:1px solid #444;padding:5px 7px;vertical-align:top}
+.cl th{background:#1a2030;font-size:10.5px;text-transform:uppercase;color:var(--mt)}
+.cl .sec{background:#141a24;font-weight:600;color:var(--ac);font-size:11.5px}
+.cl .num{text-align:center;font-weight:700;font-size:13px;color:var(--ac);width:30px}
+.cl .stage{width:80px;font-weight:600;color:var(--mt);font-size:11px;writing-mode:vertical-lr;text-align:center;letter-spacing:1px}
+.cl .items{width:90px;font-size:11px;color:var(--mt)}
+.cl .std{font-size:11.5px}
+.cl .ack{width:60px;text-align:center}
+.cl .ack select{background:var(--p2);border:1px solid var(--ln);color:var(--ink);border-radius:4px;padding:2px;font-size:11px;width:100%}
+.cl .rem{width:110px}
+.cl .rem input{font-size:11px;padding:3px 5px}
+.cl-header{background:var(--p);padding:12px 14px;border:1px solid var(--ln);border-radius:8px 8px 0 0;margin-bottom:0}
+.cl-header .r2{align-items:center}
+.cl-notes{font-size:10.5px;color:var(--mt);margin-top:8px;padding:8px;border:1px solid var(--ln);border-radius:0 0 8px 8px}
+.cl-notes li{margin-bottom:2px}
+.cl-sig{margin-top:12px;display:grid;grid-template-columns:1fr 1fr;gap:20px;font-size:12px}
+@media print{
+  body{background:#fff!important;color:#000!important}
+  header,.tabs,.pane:not(.print-target){display:none!important}
+  .pane.print-target{display:block!important;padding:0;max-width:100%}
+  .card{border:none;background:#fff;padding:0}
+  .cl th,.cl td{border-color:#999}
+  .cl th{background:#e8e8e8;color:#333}
+  .cl .sec{background:#f0f0f0;color:#000}
+  .cl .num{color:#000} .cl .stage{color:#555} .cl .items{color:#555}
+  .cl .ack select{border-color:#999;color:#000;-webkit-appearance:auto}
+  .cl .rem input{border-color:#999;color:#000}
+  .cl-header{background:#f8f8f8;border-color:#999}
+  .cl-notes{color:#555;border-color:#999}
+  button,.gh{display:none!important}
+}
 </style></head><body>
 <header><h1>FIARS</h1><span class="sub" id="statBar">loading…</span></header>
 <div class="tabs" id="tabs">
   <div class="tab on" data-t="parse">Parse Ticket</div>
+  <div class="tab" data-t="checklist">Checklist</div>
   <div class="tab" data-t="search">Knowledge Base</div>
   <div class="tab" data-t="add">Quick Add</div>
   <div class="tab" data-t="cases">Case History</div>
@@ -75,15 +109,33 @@ th:hover{color:var(--ink)}
   </div>
 
   <div id="parseOut" class="hidden">
-    <!-- SOLUTION + REPORT (TOP PRIORITY) -->
+    <!-- SERVER + FAULT (verify on-site) -->
     <div class="r2">
       <div class="card">
-        <h2>Recommended solution</h2>
-        <div id="pSolution" style="font-size:13px">No matching solutions in knowledge base yet.</div>
+        <h2>Server</h2>
+        <div class="kv" id="pServer"></div>
       </div>
       <div class="card">
-        <h2>Report <button class="gh sm" id="copyReport" style="float:right">Copy</button></h2>
-        <div id="pReport" class="pre"></div>
+        <h2>Fault</h2>
+        <div class="kv" id="pFault"></div>
+      </div>
+    </div>
+
+    <!-- SOLUTION (the main thing) -->
+    <div class="card">
+      <h2>Recommended solution</h2>
+      <div id="pSolution" style="font-size:13px"></div>
+    </div>
+
+    <!-- PARTS TO BRING + DIAGNOSTIC COMMANDS -->
+    <div class="r2">
+      <div class="card">
+        <h2>Parts to bring</h2>
+        <div id="pParts" style="font-size:13px"></div>
+      </div>
+      <div class="card">
+        <h2>Diagnostic commands <button class="gh sm" id="copyCmds" style="float:right">Copy all</button></h2>
+        <div id="pCmds" style="font-size:12px"></div>
       </div>
     </div>
 
@@ -93,13 +145,13 @@ th:hover{color:var(--ink)}
     <!-- RELATED KNOWLEDGE -->
     <div id="pKBR"></div>
 
-    <!-- PARSED DETAILS -->
+    <!-- REPORT -->
     <div class="card">
-      <h2>Parsed ticket details</h2>
-      <div class="r2"><div class="kv" id="pDet1"></div><div class="kv" id="pDet2"></div></div>
+      <h2>Report template <button class="gh sm" id="copyReport" style="float:right">Copy</button></h2>
+      <div id="pReport" class="pre"></div>
     </div>
 
-    <!-- LOG CASE (bottom) -->
+    <!-- LOG CASE (after the job) -->
     <div class="card">
       <h2>Log this case</h2>
       <div class="r3">
@@ -114,6 +166,7 @@ th:hover{color:var(--ink)}
       </div>
       <div style="margin-top:10px"><button id="logCase">Save case</button></div>
     </div>
+    </div>
   </div>
 </div>
 
@@ -123,8 +176,15 @@ th:hover{color:var(--ink)}
     <div class="si"><input id="sQ" placeholder="Search errors, parts, solutions…"></div>
     <div style="margin-top:8px;display:flex;gap:6px">
       <button class="gh sm" id="kbExport">Export knowledge (JSON)</button>
-      <button class="gh sm" id="kbImportBtn">Import knowledge (JSON)</button>
+      <button class="gh sm" id="kbImportBtn">Import JSON file</button>
+      <button class="gh sm" id="bulkToggle">Bulk import (paste)</button>
       <input type="file" id="kbImportFile" accept=".json" style="display:none">
+    </div>
+    <div id="bulkArea" class="hidden" style="margin-top:10px">
+      <label>Paste pipe-delimited data (one entry per line):</label>
+      <div style="color:var(--mt);font-size:11px;margin-bottom:4px">Format: <code>ERROR_CODE | DESCRIPTION | PARTS | ROOT_CAUSE | SOLUTION</code> — category auto-detected</div>
+      <textarea id="bulkText" rows="6" placeholder="CPU_MCE | CPU MCE error | CPU | BIOS issue | 1. Upgrade BIOS. 2. Cross-test.&#10;SMART_197 | Pending sectors | HDD | Media degradation | Replace disk"></textarea>
+      <div style="margin-top:6px"><button class="sm" id="bulkImport">Import pasted data</button> <span id="bulkStatus" style="color:var(--mt);font-size:12px"></span></div>
     </div>
   </div>
   <div id="sResults"></div>
@@ -153,6 +213,30 @@ th:hover{color:var(--ink)}
     </div>
     <label>Notes</label><input id="aNotes">
     <div style="margin-top:12px"><button id="addBtn">Save to knowledge base</button></div>
+  </div>
+
+  <div class="card">
+    <h2>Bulk import — paste many entries at once</h2>
+    <div style="font-size:12px;color:var(--mt);margin-bottom:8px">
+      Paste pipe-delimited rows, markdown tables, or JSON. Format:
+      <code style="background:var(--p2);padding:1px 5px;border-radius:3px">ERROR | DESCRIPTION | PARTS | ROOT_CAUSE | SOLUTION</code>
+    </div>
+    <div class="r2" style="margin-bottom:8px">
+      <div><label>Default category (optional)</label><select id="bCat"><option value="">— auto —</option>
+        <option>Fan</option><option>PSU</option><option>Motherboard</option><option>CPU</option>
+        <option>Memory</option><option>Storage</option><option>Battery</option><option>BIOS</option>
+        <option>Firmware</option><option>Power</option><option>Network</option><option>Thermal</option>
+        <option>System</option><option>GPU</option><option>Other</option></select></div>
+      <div><label>Format</label><select id="bFmt"><option value="auto">Auto-detect</option>
+        <option value="pipe">Pipe-delimited</option><option value="markdown">Markdown table</option>
+        <option value="json">JSON</option></select></div>
+    </div>
+    <textarea id="bText" rows="8" placeholder="CPU threshold | CPU threshold fault | CPU | BIOS issue | 1. Check BIOS version..."></textarea>
+    <div style="margin-top:10px;display:flex;gap:8px">
+      <button class="gh sm" id="bPreview">Preview</button>
+      <button class="sm" id="bImport">Import all</button>
+    </div>
+    <div id="bResult" style="margin-top:10px;font-size:12.5px"></div>
   </div>
 </div>
 
@@ -185,6 +269,126 @@ th:hover{color:var(--ink)}
     </div>
   </div>
   <div id="dumpList"></div>
+</div>
+
+<!-- ═══ CHECKLIST ═══ -->
+<div class="pane" id="p-checklist">
+  <div class="card">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
+      <h2 style="margin:0">Engineer MA Service Checklist</h2>
+      <div><button class="gh sm" id="clAutoFill">Auto-fill from ticket</button> <button class="sm" id="clPrint">Print / Save PDF</button></div>
+    </div>
+    <div class="cl-header">
+      <div class="r2">
+        <div><label>Ticket NO.</label><input id="clTicket" placeholder="e.g. SHGD0002014119"></div>
+        <div><label>Client</label><input id="clClient" value="ByteDance"></div>
+      </div>
+      <div class="r2" style="margin-top:6px">
+        <div><label>Engineer</label><input id="clEngineer"></div>
+        <div><label>Date</label><input id="clDate"></div>
+      </div>
+    </div>
+
+    <table class="cl">
+      <thead><tr><th>No.</th><th>Stage</th><th>Items</th><th>Check Standard</th><th>Ack</th><th>Remarks</th></tr></thead>
+      <tbody>
+        <!-- BEFORE SERVICE -->
+        <tr><td class="num" rowspan="3">1</td><td class="stage" rowspan="3">Before service</td>
+            <td class="items">Ticket information</td>
+            <td class="std">Study and understand the fault description and suggested onsite operation in portal before proceeding with the maintenance activity</td>
+            <td class="ack"><select data-ck="1"><option></option><option>Yes</option><option>No</option><option>N/A</option></select></td>
+            <td class="rem"><input data-rm="1"></td></tr>
+        <tr><td class="items">Device information</td>
+            <td class="std">Check that the server SN is consistent with the ticket</td>
+            <td class="ack"><select data-ck="2"><option></option><option>Yes</option><option>No</option><option>N/A</option></select></td>
+            <td class="rem"><input data-rm="2"></td></tr>
+        <tr><td class="items">Marking information</td>
+            <td class="std">Turn on UID to confirm server to be repaired (Five elements: rack position, U position, SN, maintenance label, UID light)</td>
+            <td class="ack"><select data-ck="3"><option></option><option>Yes</option><option>No</option><option>N/A</option></select></td>
+            <td class="rem"><input data-rm="3"></td></tr>
+
+        <!-- DURING SERVICE -->
+        <tr><td class="num" rowspan="12">2</td><td class="stage" rowspan="12">During service</td>
+            <td class="items" rowspan="2">Shut down and restart</td>
+            <td class="std">Double check the marks and SN before shutdown and restart after getting permission</td>
+            <td class="ack"><select data-ck="4"><option></option><option>Yes</option><option>No</option><option>N/A</option></select></td>
+            <td class="rem"><input data-rm="4" data-auto="hotswap" data-val="Hot-swap, no shutdown"></td></tr>
+        <tr><td class="std">Take extra cautions on window ticket. If the server doesn't shutdown during the window maintenance time, do not proceed — escalate immediately</td>
+            <td class="ack"><select data-ck="5"><option></option><option>Yes</option><option>No</option><option>N/A</option></select></td>
+            <td class="rem"><input data-rm="5" data-auto="hotswap" data-val="Not applicable, hot-swap"></td></tr>
+        <tr><td class="items">Surrounding &amp; peripheral</td>
+            <td class="std">Take extra cautious on server status, rack status, railkit status. When server has to be unmounted, be very careful</td>
+            <td class="ack"><select data-ck="6"><option></option><option>Yes</option><option>No</option><option>N/A</option></select></td>
+            <td class="rem"><input data-rm="6"></td></tr>
+        <tr><td class="items" rowspan="4">Updating Firmware</td>
+            <td class="std">Record the firmware version and FRU before performing any activities. Make sure these are flashed accordingly after service</td>
+            <td class="ack"><select data-ck="7"><option></option><option>Yes</option><option>No</option><option>N/A</option></select></td>
+            <td class="rem"><input data-rm="7" data-auto="nofw" data-val="No FW activity"></td></tr>
+        <tr><td class="std">Confirm if device is general or customized. Confirm BIOS, BMC, FRU, SAS card, network card refresh requirements, then refresh as required</td>
+            <td class="ack"><select data-ck="8"><option></option><option>Yes</option><option>No</option><option>N/A</option></select></td>
+            <td class="rem"><input data-rm="8" data-auto="nofw" data-val="Not required"></td></tr>
+        <tr><td class="std">If server is powered off during repair, collect necessary logs and keep for at least 3 months</td>
+            <td class="ack"><select data-ck="9"><option></option><option>Yes</option><option>No</option><option>N/A</option></select></td>
+            <td class="rem"><input data-rm="9" data-auto="hotswap" data-val="No power off"></td></tr>
+        <tr><td class="std">Check FW version and customized information. Ensure consistent with requirements after firmware refresh</td>
+            <td class="ack"><select data-ck="10"><option></option><option>Yes</option><option>No</option><option>N/A</option></select></td>
+            <td class="rem"><input data-rm="10" data-auto="nofw" data-val="Not required"></td></tr>
+        <tr><td class="items" rowspan="5">Replacement of spare parts</td>
+            <td class="std">Make sure the accurate fault slot information and SN (especially Bad Hard Disk SN) before replacing spare part. If onsite found unmatch error with ticket, escalate immediately</td>
+            <td class="ack"><select data-ck="11"><option></option><option>Yes</option><option>No</option><option>N/A</option></select></td>
+            <td class="rem"><input data-rm="11"></td></tr>
+        <tr><td class="std">Confirm the spare part is physically good and doesn't have any external damage</td>
+            <td class="ack"><select data-ck="12"><option></option><option>Yes</option><option>No</option><option>N/A</option></select></td>
+            <td class="rem"><input data-rm="12"></td></tr>
+        <tr><td class="std">Before replacing spare parts, verify PN information and capacity with service manager. For different PN, confirm compatibility before replacement</td>
+            <td class="ack"><select data-ck="13"><option></option><option>Yes</option><option>No</option><option>N/A</option></select></td>
+            <td class="rem"><input data-rm="13"></td></tr>
+        <tr><td class="std">For non-multibrand spare parts, good and bad parts must be labelled with sticker</td>
+            <td class="ack"><select data-ck="14"><option></option><option>Yes</option><option>No</option><option>N/A</option></select></td>
+            <td class="rem"><input data-rm="14"></td></tr>
+        <tr><td class="std">All parts are dismantled and reverted accordingly</td>
+            <td class="ack"><select data-ck="15"><option></option><option>Yes</option><option>No</option><option>N/A</option></select></td>
+            <td class="rem"><input data-rm="15"></td></tr>
+
+        <!-- AFTER SERVICE -->
+        <tr><td class="num" rowspan="6">3</td><td class="stage" rowspan="6">After service</td>
+            <td class="items" rowspan="4">Maintenance checks</td>
+            <td class="std">Confirm all parts of the equipment are identified normally and the server indicator light is normal</td>
+            <td class="ack"><select data-ck="16"><option></option><option>Yes</option><option>No</option><option>N/A</option></select></td>
+            <td class="rem"><input data-rm="16"></td></tr>
+        <tr><td class="std">Confirm that external cables (network cable, optical fiber) are installed correctly and indicator is normal</td>
+            <td class="ack"><select data-ck="17"><option></option><option>Yes</option><option>No</option><option>N/A</option></select></td>
+            <td class="rem"><input data-rm="17"></td></tr>
+        <tr><td class="std">Confirm the specification configuration provided by customer is completed</td>
+            <td class="ack"><select data-ck="18"><option></option><option>Yes</option><option>No</option><option>N/A</option></select></td>
+            <td class="rem"><input data-rm="18"></td></tr>
+        <tr><td class="std">Confirm server is mounted properly and securely to the rail kit. If no railkit, escalate to team</td>
+            <td class="ack"><select data-ck="19"><option></option><option>Yes</option><option>No</option><option>N/A</option></select></td>
+            <td class="rem"><input data-rm="19"></td></tr>
+        <tr><td class="items" rowspan="2">Customer confirmation</td>
+            <td class="std">Confirm the customer feedback that the server is working normal and boot to OS normally</td>
+            <td class="ack"><select data-ck="20"><option></option><option>Yes</option><option>No</option><option>N/A</option></select></td>
+            <td class="rem"><input data-rm="20"></td></tr>
+        <tr><td class="std">Confirm to return all non-returnable parts/access card to customer accordingly</td>
+            <td class="ack"><select data-ck="21"><option></option><option>Yes</option><option>No</option><option>N/A</option></select></td>
+            <td class="rem"><input data-rm="21"></td></tr>
+      </tbody>
+    </table>
+
+    <div class="cl-notes">
+      <ol>
+        <li>The operation process should not violate the regulations of the hand-written "Red line operations"</li>
+        <li>The operation process should not violate the regulations of the datacenter and customer requirements</li>
+        <li>Select "N/A" in the Ack column if the operation is not performed. Fill in the reason in Remarks if "No" is selected</li>
+        <li>After ticket is completed, engineer needs to submit the PDF of the inspection checklist signed for centralized filing</li>
+      </ol>
+    </div>
+
+    <div class="cl-sig">
+      <div><label>Engineer Signature</label><input id="clSig" style="margin-top:4px"></div>
+      <div><label>Customer Acknowledgement</label><input id="clCustSig" style="margin-top:4px"></div>
+    </div>
+  </div>
 </div>
 
 <!-- ═══ EDIT MODAL ═══ -->
@@ -232,7 +436,7 @@ async function loadStats(){
 }
 loadStats();
 
-// ══════ PARSE TICKET ════════════════════════════════════════════════════
+// ══════ PARSE TICKET (MISSION BRIEFING) ═════════════════════════════════
 $('parseBtn').onclick=async()=>{
   const btn=$('parseBtn');btn.disabled=true;btn.innerHTML='<span class="sp"></span>Parsing…';
   const r=await api('/api/parse',J({raw:$('pRaw').value,ticket_number:$('pTicket').value}));
@@ -243,17 +447,47 @@ $('parseBtn').onclick=async()=>{
   const first=blocks[0];
   S.job=first.job;S.draft=first.draft;$('parseOut').classList.remove('hidden');
 
-  // Solution (TOP)
+  // Server info
+  const j=first.job;
+  $('pServer').innerHTML=[['SN',j.server_sn],['Model',j.server_model],['Location',j.location_full],
+    ['Vendor',j.manufacturer],['Ticket',j.ticket_number],['Asset',j.asset_no]].filter(p=>p[1]).map(
+    p=>`<div class="k">${p[0]}</div><div>${esc(String(p[1]))}</div>`).join('');
+
+  // Fault info (show all blocks if multi)
+  if(blocks.length>1){
+    $('pFault').innerHTML=blocks.map((b,i)=>{const f=b.job;return`<div class="k" style="grid-column:1/-1;color:var(--ac);margin-top:${i?6:0}px">Block ${i+1}</div>`+
+      [['Type',f.fault_type],['Category',f.category],['Description',f.fault_description],
+       ['Part',(f.part||{}).type],['Slot',(f.part||{}).position]].filter(p=>p[1]).map(
+      p=>`<div class="k">${p[0]}</div><div>${esc(String(p[1]))}</div>`).join('')}).join('');
+  } else {
+    $('pFault').innerHTML=[['Type',j.fault_type],['Category',j.category],['Description',j.fault_description],
+      ['Detail',j.fault_detail],['Part Type',(j.part||{}).type],['Part Model',j.part_model],
+      ['Slot',(j.part||{}).position],['Part SN',(j.part||{}).sn]].filter(p=>p[1]).map(
+      p=>`<div class="k">${p[0]}</div><div>${esc(String(p[1]))}</div>`).join('');
+  }
+
+  // Solution
   const sol=$('pSolution');
   if(first.kb_results&&first.kb_results.length){
     const top=first.kb_results[0];
     sol.innerHTML=`<div style="margin-bottom:8px"><span class="badge b-ok">${esc(top.category)}</span> <b>${esc(top.error_code||'')}</b></div>
       <div style="margin-bottom:6px">${esc(top.fault_description)}</div>
       ${top.root_cause?`<div style="color:var(--mt);margin-bottom:4px"><b>Root cause:</b> ${esc(top.root_cause)}</div>`:''}
-      <div style="color:var(--ok)"><b>Solution:</b> ${esc(top.solution)}</div>
-      ${top.affected_parts?`<div style="color:var(--mt);margin-top:4px"><b>Parts:</b> ${esc(top.affected_parts)}</div>`:''}`;
-  } else {sol.innerHTML='<div style="color:var(--mt)">No matching solutions yet.</div>';}
+      <div style="color:var(--ok)"><b>Solution:</b> ${esc(top.solution)}</div>`;
+  } else {sol.innerHTML='<div style="color:var(--mt)">No matching solutions in knowledge base. After solving, add it via Quick Add.</div>';}
 
+  // Parts to bring
+  const pts=first.parts_to_bring||[];
+  $('pParts').innerHTML=pts.length?pts.map(p=>`<div style="padding:3px 0">• ${esc(p)}</div>`).join('')
+    :'<div style="color:var(--mt)">No specific parts identified. Check solution details.</div>';
+
+  // Diagnostic commands
+  const diag=first.diagnostics||{};
+  const cmds=diag.commands||[];
+  $('pCmds').innerHTML=(diag.log_collection||[]).map(l=>`<div style="color:var(--wn);margin-bottom:2px">⚠ ${esc(l)}</div>`).join('')
+    +cmds.map(c=>`<div style="margin:4px 0"><code style="background:var(--p2);padding:2px 6px;border-radius:3px;user-select:all;cursor:pointer" title="Click to select">${esc(c.cmd)}</code><span style="color:var(--mt);margin-left:6px;font-size:11px">${esc(c.desc)}</span></div>`).join('');
+
+  // Report
   $('pReport').textContent=blocks.map((b,i)=>blocks.length>1?`--- Block ${i+1}: ${b.job.fault_type||'?'} ---\n${b.report}`:b.report).join('\n\n');
 
   // KB pattern matches
@@ -263,23 +497,14 @@ $('parseBtn').onclick=async()=>{
       ${m.dimm_slots&&m.dimm_slots.length?'<br>DIMMs: '+m.dimm_slots.join(', '):''}
       ${m.article?'<br><span style="color:var(--mt)">'+esc(m.article.suggestions||m.article.solution||'')+'</span>':''}</div>`;}));
 
-  // Related knowledge (all blocks, deduped)
+  // Related knowledge
   const pkr=$('pKBR');pkr.innerHTML='';
   const allKB=[];const seen=new Set();
-  blocks.forEach(b=>(b.kb_results||[]).forEach(k=>{if(!seen.has(k.id)){seen.add(k.id);allKB.push(k)}}));
-  if(allKB.length>1){pkr.innerHTML='<div class="card"><h2>Related knowledge ('+allKB.length+')</h2>'+allKB.slice(0,8).map(k=>
-    `<div style="padding:6px 0;border-bottom:1px solid var(--ln);font-size:13px"><span class="badge b-mt">${esc(k.category||'')}</span> <b>${esc(k.error_code||'')}</b> ${esc(k.fault_description.slice(0,60))}<div class="sol">${esc(k.solution.slice(0,100))}</div></div>`).join('')+'</div>';}
+  blocks.forEach(b=>(b.kb_results||[]).slice(1).forEach(k=>{if(!seen.has(k.id)){seen.add(k.id);allKB.push(k)}}));
+  if(allKB.length){pkr.innerHTML='<div class="card"><h2>Other possible causes ('+allKB.length+')</h2>'+allKB.slice(0,6).map(k=>
+    `<div style="padding:5px 0;border-bottom:1px solid var(--ln);font-size:13px"><span class="badge b-mt">${esc(k.category||'')}</span> <b>${esc(k.error_code||'')}</b> ${esc(k.fault_description.slice(0,60))}<div class="sol">${esc(k.solution.slice(0,100))}</div></div>`).join('')+'</div>';}
 
-  // Details
-  const j=first.job;
-  if(blocks.length>1){
-    $('pDet1').innerHTML=blocks.map((b,i)=>`<div class="k" style="grid-column:1/-1;color:var(--ac);margin-top:${i?8:0}px">Block ${i+1}: ${b.job.fault_type||'?'}</div>`+
-      [['Desc',b.job.fault_description],['Part',(b.job.part||{}).type],['Slot',(b.job.part||{}).position]].filter(p=>p[1]).map(p=>`<div class="k">${p[0]}</div><div>${esc(String(p[1]))}</div>`).join('')).join('');
-    $('pDet2').innerHTML=[['SN',j.server_sn],['Location',j.location_full],['Model',j.server_model]].filter(p=>p[1]).map(p=>`<div class="k">${p[0]}</div><div>${esc(String(p[1]))}</div>`).join('');
-  } else {
-    $('pDet1').innerHTML=[['Ticket',j.ticket_number],['SN',j.server_sn],['Location',j.location_full],['Model',j.server_model],['Vendor',j.manufacturer]].filter(p=>p[1]).map(p=>`<div class="k">${p[0]}</div><div>${esc(String(p[1]))}</div>`).join('');
-    $('pDet2').innerHTML=[['Category',j.category],['Type',j.fault_type],['Description',j.fault_description],['Detail',j.fault_detail],['Part',j.part_model],['Slot',(j.part||{}).position]].filter(p=>p[1]).map(p=>`<div class="k">${p[0]}</div><div>${esc(String(p[1]))}</div>`).join('');
-  }
+  // Prefill case log
   $('cErr').value=first.job.fault_description||'';
   $('cParts').value=(first.job.part||{}).type||'';
   $('cSol').value=(first.kb_results&&first.kb_results[0])?first.kb_results[0].solution:'';
@@ -288,6 +513,10 @@ $('parseBtn').onclick=async()=>{
 };
 
 $('copyReport').onclick=()=>navigator.clipboard.writeText($('pReport').textContent).then(()=>toast('Copied')).catch(()=>toast('Failed',1));
+$('copyCmds').onclick=()=>{
+  const cmds=[...$('pCmds').querySelectorAll('code')].map(c=>c.textContent).join('\n');
+  navigator.clipboard.writeText(cmds).then(()=>toast('Commands copied')).catch(()=>toast('Failed',1));
+};
 
 $('logCase').onclick=async()=>{
   const ef=$('cErr').value.trim(),sol=$('cSol').value.trim();
@@ -391,6 +620,42 @@ $('kbImportFile').onchange=async()=>{
   $('kbImportFile').value='';
 };
 
+$('bulkToggle').onclick=()=>$('bulkArea').classList.toggle('hidden');
+$('bulkImport').onclick=async()=>{
+  const text=$('bulkText').value.trim();
+  if(!text){toast('Paste data first',1);return}
+  const lines=text.split('\n').filter(l=>l.trim()&&l.includes('|'));
+  if(!lines.length){toast('No valid pipe-delimited lines found',1);return}
+
+  // Auto-detect category from parts/description
+  function guessCat(desc,parts){
+    const t=(desc+' '+parts).toLowerCase();
+    if(/\bgpu\b|xid|cuda|nvidia/.test(t))return 'GPU';
+    if(/\bmemory\b|\bdimm\b|\bram\b|\becc\b|\bedac\b/.test(t))return 'Memory';
+    if(/\bcpu\b|\bprocessor\b|\bmce\b|\bierr\b/.test(t))return 'CPU';
+    if(/\bdisk\b|\bsmart\b|\bhdd\b|\bssd\b|\bnvme\b|\braid\b/.test(t))return 'Storage';
+    if(/\bfan\b|\bthermal\b|\btemp\b|\bheat\b/.test(t))return 'Thermal';
+    if(/\bpower\b|\bpsu\b|\bvoltage\b/.test(t))return 'Power';
+    if(/\bnetwork\b|\bnic\b|\blan\b|\bcable\b/.test(t))return 'Network';
+    if(/\bbios\b|\bboot\b|\buefi\b/.test(t))return 'BIOS';
+    if(/\bbmc\b|\bfirmware\b/.test(t))return 'Firmware';
+    return 'Other';
+  }
+
+  const entries=lines.map(l=>{
+    const p=l.split('|').map(s=>s.trim());
+    return{error_code:p[0]||'',fault_description:p[1]||'',affected_parts:p[2]||'',
+      root_cause:p[3]||'',solution:p[4]||'',category:p[5]||guessCat(p[1]||'',p[2]||'')};
+  }).filter(e=>e.fault_description&&e.solution);
+
+  if(!entries.length){toast('No valid entries (need at least description and solution)',1);return}
+  $('bulkStatus').textContent=`Importing ${entries.length} entries...`;
+  const r=await api('/api/knowledge/import',J({knowledge:entries}));
+  if(r.ok){toast(`Done: ${r.added} added, ${r.skipped} skipped (duplicates)`);
+    $('bulkText').value='';$('bulkStatus').textContent='';doSearch();loadStats();}
+  else toast(r.error||'Failed',1);
+};
+
 // ══════ QUICK ADD ═══════════════════════════════════════════════════════
 $('addBtn').onclick=async()=>{
   const desc=$('aDesc').value.trim(),sol=$('aSol').value.trim();
@@ -402,6 +667,32 @@ $('addBtn').onclick=async()=>{
   $('addBtn').disabled=false;
   if(r.ok){toast('Saved #'+r.id);['aErr','aDesc','aParts','aRC','aSol','aSrc','aNotes'].forEach(i=>$(i).value='');$('aCat').value='';loadStats();}
   else toast(r.error||'Failed',1);
+};
+
+// Bulk import
+$('bPreview').onclick=async()=>{
+  const text=$('bText').value.trim();
+  if(!text){toast('Paste some data first',1);return}
+  const r=await api('/api/knowledge/bulk_preview',J({text,category:$('bCat').value,format:$('bFmt').value}));
+  if(r.error){toast(r.error,1);return}
+  const el=$('bResult');
+  if(!r.count){el.innerHTML='<div style="color:var(--wn)">No entries detected. Check the format.</div>';return}
+  el.innerHTML=`<div style="color:var(--ok);margin-bottom:6px">${r.count} entries detected:</div>`+
+    r.entries.slice(0,10).map(e=>`<div style="padding:4px 0;border-bottom:1px solid var(--ln)">
+      <b>${esc(e.error_code||'(no code)')}</b> [${esc(e.category||'—')}] — ${esc((e.fault_description||'').slice(0,50))}
+      <div class="sol">${esc((e.solution||'').slice(0,70))}</div></div>`).join('')+
+    (r.count>10?`<div style="color:var(--mt);margin-top:4px">…and ${r.count-10} more</div>`:'');
+};
+$('bImport').onclick=async()=>{
+  const text=$('bText').value.trim();
+  if(!text){toast('Paste some data first',1);return}
+  $('bImport').disabled=true;
+  const r=await api('/api/knowledge/bulk_import',J({text,category:$('bCat').value,format:$('bFmt').value}));
+  $('bImport').disabled=false;
+  if(r.ok){toast(`Imported ${r.added}, skipped ${r.skipped}`);
+    $('bResult').innerHTML=`<div style="color:var(--ok)">✓ Added ${r.added} entries (${r.skipped} skipped as duplicates/incomplete)</div>`;
+    $('bText').value='';loadStats();}
+  else toast(r.error||'Import failed',1);
 };
 
 // ══════ CASE HISTORY ════════════════════════════════════════════════════
@@ -458,6 +749,53 @@ async function toKB(id){
   document.querySelector('[data-t="add"]').click();$('aDesc').value=(r.extracted_text||'').slice(0,500);
   toast('Prefilled — edit and save.');
 }
+
+// ══════ CHECKLIST ════════════════════════════════════════════════════════
+$('clDate').value=new Date().toLocaleDateString('en-GB',{day:'numeric',month:'long',year:'numeric'});
+
+$('clAutoFill').onclick=()=>{
+  if(!S.job){toast('Parse a ticket first, then click Auto-fill',1);return}
+  const j=S.job;
+  $('clTicket').value=j.ticket_number||'';
+  $('clEngineer').value=$('cEng').value||'';
+  $('clSig').value=$('cEng').value||'';
+  $('clDate').value=new Date().toLocaleDateString('en-GB',{day:'numeric',month:'long',year:'numeric'});
+
+  // Determine repair type
+  const ptype=((j.part||{}).type||'').toUpperCase();
+  const isHotSwap=['HDD','SSD','NVME','FAN','PSU'].includes(ptype);
+  const cat=(j.category||'').toLowerCase();
+  const needsFW=['bios','firmware','bmc'].includes(cat);
+
+  // Auto-fill conditional remarks
+  document.querySelectorAll('[data-auto]').forEach(inp=>{
+    const rule=inp.dataset.auto;
+    if(rule==='hotswap'&&isHotSwap) inp.value=inp.dataset.val;
+    else if(rule==='nofw'&&!needsFW) inp.value=inp.dataset.val;
+    else inp.value='';
+  });
+
+  // Auto-set acknowledge for obvious items
+  document.querySelectorAll('[data-ck]').forEach(sel=>{
+    const n=parseInt(sel.dataset.ck);
+    // Before service items: always Yes
+    if(n<=3) sel.value='Yes';
+    // Shutdown items: N/A if hot-swap
+    if((n===4||n===5)&&isHotSwap) sel.value='N/A';
+    // FW items: N/A if no FW needed
+    if([7,8,10].includes(n)&&!needsFW) sel.value='N/A';
+    if(n===9&&isHotSwap) sel.value='N/A';
+  });
+
+  toast('Checklist auto-filled from parsed ticket');
+};
+
+$('clPrint').onclick=()=>{
+  // Add print-target class to checklist pane
+  $('p-checklist').classList.add('print-target');
+  window.print();
+  setTimeout(()=>$('p-checklist').classList.remove('print-target'),1000);
+};
 
 // Init
 (async()=>{const c=await api('/api/config');if(c.engineer_name){$('aEng').value=c.engineer_name;$('cEng').value=c.engineer_name}})();
