@@ -11,6 +11,7 @@ from fiars import db
 from fiars.extract import extract_text
 from fiars.config import load_config
 from fiars.parser import parse_ticket, parse_multi_ticket, search_text
+from fiars.parser_table import parse_dispatch_table, merge_dispatch
 from fiars.report import build_report, default_draft
 from fiars.smart_search import smart_search
 from fiars.diagnostics import get_diagnostics
@@ -173,6 +174,10 @@ class Handler(BaseHTTPRequestHandler):
                 if not raw.strip():
                     return self._json(400, {"error": "Paste the fault block first."})
                 jobs = parse_multi_ticket(raw, b.get("ticket_number", ""))
+                dispatch_raw = b.get("dispatch_table", "")
+                if dispatch_raw.strip():
+                    rows = parse_dispatch_table(dispatch_raw)
+                    merge_dispatch(jobs, rows)
                 results = []
                 for job in jobs:
                     draft = default_draft(job)

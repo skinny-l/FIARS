@@ -105,6 +105,10 @@ th:hover{color:var(--ink)}
       <div><label>Paste fault description block</label>
         <textarea id="pRaw" rows="5" placeholder="Paste the raw fault block here…"></textarea></div>
     </div>
+    <div style="margin-top:10px">
+      <label>Dispatch table (optional — paste the shift assignment email to auto-fill Ticket No# and OLD/NEW PN)</label>
+      <textarea id="pDispatch" rows="4" placeholder="Paste the dispatch/assignment table here (Date, Ticket No#, Case ID#, Server SN, Rack Info, Faulty Part, OLD PN, NEW PN, Maker, Model, Engineer)…"></textarea>
+    </div>
     <div style="margin-top:10px"><button id="parseBtn">Parse &amp; diagnose</button></div>
   </div>
 
@@ -439,7 +443,7 @@ loadStats();
 // ══════ PARSE TICKET (MISSION BRIEFING) ═════════════════════════════════
 $('parseBtn').onclick=async()=>{
   const btn=$('parseBtn');btn.disabled=true;btn.innerHTML='<span class="sp"></span>Parsing…';
-  const r=await api('/api/parse',J({raw:$('pRaw').value,ticket_number:$('pTicket').value}));
+  const r=await api('/api/parse',J({raw:$('pRaw').value,ticket_number:$('pTicket').value,dispatch_table:$('pDispatch').value}));
   btn.disabled=false;btn.textContent='Parse & diagnose';
   if(r.error){toast(r.error,1);return}
   const blocks=r.multi?r.blocks:[r];

@@ -28,12 +28,12 @@ def default_draft(job: dict[str, Any]) -> dict[str, Any]:
         "part_kind": ptype,
         "old": {
             "model": job.get("part_model", ""),
-            "pn": "",                      # internal PN — not in the block, engineer fills
+            "pn": part.get("old_pn", ""),  # from dispatch table match, else blank
             "qn": part.get("sn", ""),
             "sn": part.get("sn", ""),
             "mpn": part.get("pn", ""),     # part_pn -> MPN
         },
-        "new": {"model": "", "pn": "", "qn": "", "sn": "", "mpn": ""},
+        "new": {"model": "", "pn": part.get("new_pn", ""), "qn": "", "sn": "", "mpn": ""},
         "remark": "Done",
     }
 
