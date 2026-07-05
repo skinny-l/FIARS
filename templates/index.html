@@ -149,9 +149,12 @@ th:hover{color:var(--ink)}
     <!-- RELATED KNOWLEDGE -->
     <div id="pKBR"></div>
 
+    <!-- SIMILAR PAST CASES (recommend.py) -->
+    <div id="pRecommend"></div>
+
     <!-- REPORT -->
     <div class="card">
-      <h2>Report template <button class="gh sm" id="copyReport" style="float:right">Copy</button></h2>
+      <h2>Report template <button class="gh sm" id="copyReport" style="float:right">Copy for OneNote</button></h2>
       <div id="pReport" class="pre"></div>
     </div>
 
@@ -164,9 +167,14 @@ th:hover{color:var(--ink)}
         <div><label>Solution *</label><input id="cSol"></div>
       </div>
       <div class="r3">
+        <div><label>Root cause</label><input id="cCause" placeholder="Optional — feeds future recommendations"></div>
         <div><label>Engineer</label><input id="cEng"></div>
         <div><label>Time (min)</label><input id="cTime" type="number" min="0"></div>
+      </div>
+      <div class="r2">
         <div><label>Notes</label><input id="cNotes"></div>
+        <div><label style="display:flex;align-items:center;gap:6px;margin-top:18px">
+          <input id="cRecur" type="checkbox" style="width:auto"> Fault recurred (previous fix didn't hold)</label></div>
       </div>
       <div style="margin-top:10px"><button id="logCase">Save case</button></div>
     </div>
@@ -450,6 +458,7 @@ $('parseBtn').onclick=async()=>{
   if(r.multi)toast(`${r.count} fault blocks detected`);
   const first=blocks[0];
   S.job=first.job;S.draft=first.draft;$('parseOut').classList.remove('hidden');
+  S.ticketNumbers=[...new Set(blocks.map(b=>b.job.ticket_number).filter(Boolean))];
 
   // Server info
   const j=first.job;
@@ -508,6 +517,23 @@ $('parseBtn').onclick=async()=>{
   if(allKB.length){pkr.innerHTML='<div class="card"><h2>Other possible causes ('+allKB.length+')</h2>'+allKB.slice(0,6).map(k=>
     `<div style="padding:5px 0;border-bottom:1px solid var(--ln);font-size:13px"><span class="badge b-mt">${esc(k.category||'')}</span> <b>${esc(k.error_code||'')}</b> ${esc(k.fault_description.slice(0,60))}<div class="sol">${esc(k.solution.slice(0,100))}</div></div>`).join('')+'</div>';}
 
+  // Similar past cases (recommend.py — confidence-scored, from your own logged cases)
+  const pr=$('pRecommend');pr.innerHTML='';
+  blocks.forEach((b,i)=>{
+    const rc=b.recommend||{};
+    if(!rc.found) return;
+    const tag=blocks.length>1?` — Block ${i+1} (${esc(b.job.fault_type||'?')})`:'';
+    const fmt=list=>(list||[]).slice(0,3).map(x=>
+      `<div style="padding:3px 0"><b>${esc(x.label)}</b> <span style="color:var(--mt)">(${Math.round(x.confidence*100)}%, n=${x.n})</span></div>`).join('');
+    const support=(rc.support||[]).slice(0,3).map(s=>
+      `<div style="padding:4px 0;border-top:1px solid var(--ln);font-size:12px">#${s.case_id} · ${esc(s.date||'')}${s.recurred?' <span style="color:var(--wn)">⟲ recurred</span>':''}<br>${esc((s.fault_description||'').slice(0,80))}<br><span style="color:var(--ok)">→ ${esc((s.resolution||'').slice(0,100))}</span></div>`).join('');
+    pr.innerHTML+=`<div class="card"><h2>Similar past cases${tag} <span class="badge b-mt" style="float:right">${esc(rc.evidence)} evidence · ${rc.found} case(s)</span></h2>
+      ${rc.root_causes&&rc.root_causes.length?'<div style="margin-bottom:6px"><b>Likely root cause</b>'+fmt(rc.root_causes)+'</div>':''}
+      ${rc.resolutions&&rc.resolutions.length?'<div style="margin-bottom:6px"><b>Likely resolution</b>'+fmt(rc.resolutions)+'</div>':''}
+      ${support}</div>`;
+  });
+  if(!pr.innerHTML) pr.innerHTML='<div class="card"><h2>Similar past cases</h2><div style="color:var(--mt)">No matching case history yet — save cases below to start building this up.</div></div>';
+
   // Prefill case log
   $('cErr').value=first.job.fault_description||'';
   $('cParts').value=(first.job.part||{}).type||'';
@@ -516,7 +542,13 @@ $('parseBtn').onclick=async()=>{
   $('parseOut').scrollIntoView({behavior:'smooth'});
 };
 
-$('copyReport').onclick=()=>navigator.clipboard.writeText($('pReport').textContent).then(()=>toast('Copied')).catch(()=>toast('Failed',1));
+$('copyReport').onclick=()=>{
+  const tn=(S.ticketNumbers||[]).join(' / ')||$('pTicket').value||'';
+  const desc=$('pRaw').value.trim();
+  const rpt=$('pReport').textContent;
+  const combined=[tn,desc,rpt].filter(Boolean).join('\n\n');
+  navigator.clipboard.writeText(combined).then(()=>toast('Copied — ready for OneNote')).catch(()=>toast('Failed',1));
+};
 $('copyCmds').onclick=()=>{
   const cmds=[...$('pCmds').querySelectorAll('code')].map(c=>c.textContent).join('\n');
   navigator.clipboard.writeText(cmds).then(()=>toast('Commands copied')).catch(()=>toast('Failed',1));
@@ -528,11 +560,12 @@ $('logCase').onclick=async()=>{
   const j=S.job||{};
   const r=await api('/api/cases',J({ticket_number:j.ticket_number||$('pTicket').value,
     date:S.draft?S.draft.date:'',server_sn:j.server_sn||'',location:j.location_full||'',
-    error_fault:ef,parts:$('cParts').value,solution:sol,engineer:$('cEng').value,
+    error_fault:ef,parts:$('cParts').value,solution:sol,root_cause:$('cCause').value,
+    recurrence_flag:$('cRecur').checked?1:0,engineer:$('cEng').value,
     notes:$('cNotes').value,resolution_time_min:parseInt($('cTime').value)||null,
     report_text:$('pReport').textContent,raw_block:j.raw||''}));
   if(r.ok){toast('Case #'+r.id+' saved');$('parseOut').classList.add('hidden');
-    $('pRaw').value='';$('pTicket').value='';loadStats();}
+    $('pRaw').value='';$('pTicket').value='';$('cCause').value='';$('cRecur').checked=false;loadStats();}
   else toast(r.error||'Failed',1);
 };
 

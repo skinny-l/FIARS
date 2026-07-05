@@ -12,6 +12,7 @@ from fiars.extract import extract_text
 from fiars.config import load_config
 from fiars.parser import parse_ticket, parse_multi_ticket, search_text
 from fiars.parser_table import parse_dispatch_table, merge_dispatch
+from fiars.recommend import diagnose
 from fiars.report import build_report, default_draft
 from fiars.smart_search import smart_search
 from fiars.diagnostics import get_diagnostics
@@ -186,6 +187,7 @@ class Handler(BaseHTTPRequestHandler):
                     kb_results = smart_search(db, CFG["db_path"], query,
                                               parsed_category=job.get("category", ""))
                     diag = get_diagnostics(job.get("category", ""))
+                    rec = diagnose(CFG["db_path"], query, raw_text=job.get("raw", raw))
                     parts_to_bring = []
                     if kb_results:
                         p = kb_results[0].get("affected_parts", "")
@@ -194,7 +196,8 @@ class Handler(BaseHTTPRequestHandler):
                     results.append({"job": job, "draft": draft,
                         "report": build_report(draft),
                         "kb_matches": kb_matches, "kb_results": kb_results[:10],
-                        "diagnostics": diag, "parts_to_bring": parts_to_bring})
+                        "diagnostics": diag, "parts_to_bring": parts_to_bring,
+                        "recommend": rec})
                 # Single block: return flat (backwards compatible)
                 if len(results) == 1:
                     return self._json(200, results[0])
