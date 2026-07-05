@@ -34,3 +34,66 @@ From <https://stms.ieisystem.com/beijian/PkgController/showGcsPkgTodoInfo.htm?id
 """
 
 HDD_TICKET_NUMBER = "SHGD0009000001"
+
+# Dispatch/assignment table sample — one row, matching HDD_TICKET's server SN.
+# Note the dispatch ticket number ("...9999") deliberately differs from
+# HDD_TICKET_NUMBER above, to prove the merge overrides the manually-typed
+# ticket number rather than just filling in when blank.
+DISPATCH_ROW_HDD = """Date
+Ticket No#
+Case ID#
+Server SN
+Rack Info
+Faulty Part
+OLD PN
+NEW PN
+Maker
+Model
+Engineer
+2/7/2026
+SHGD0009000002
+SHSJ0009100001
+21X100001
+TESTDC1_B4_DH1B-B-10-40
+Hard drive
+V0232PY0000000ZY
+V0233JP0000000ZY
+Q
+QC5476M6D
+Taylor Deliver onsite"""
+
+# Real dispatch table sample: one ticket number covering two parts on the
+# same server (Motherboard + Memory), used to test category disambiguation.
+DISPATCH_TABLE_TWO_PARTS = """Date
+Ticket No#
+Case ID#
+Server SN
+Rack Info
+Faulty Part
+OLD PN
+NEW PN
+Maker
+Model
+Engineer
+2/7/2026
+SHGD0009000003
+SHSJ0009100002
+21X100006
+TESTDC2_B1_G1-V-14-13
+Motherboard - high risk have bent pins
+YZMB-02666-106
+YZMB-02666-106 borrow
+Q
+QC6468D7-SG
+Taylor Deliver onsite
+2/7/2026
+SHGD0009000003
+SHSJ0009100002
+21X100006
+TESTDC2_B1_G1-V-14-13
+Memory
+V0040NM0000000ZY
+V0040NM0000000ZY
+Q
+QC6468D7-SG
+Taylor Deliver onsite"""
