@@ -45,12 +45,18 @@ CREATE TABLE IF NOT EXISTS case_history (
     error_fault TEXT NOT NULL,
     parts TEXT,
     solution TEXT NOT NULL,
+    root_cause TEXT,
+    recurrence_flag INTEGER DEFAULT 0,
     engineer TEXT,
     notes TEXT,
     resolution_time_min INTEGER,
     report_text TEXT,
     raw_block TEXT,
     created_at TEXT
+);
+CREATE VIRTUAL TABLE IF NOT EXISTS case_history_fts USING fts5(
+    id UNINDEXED, error_fault, parts, solution, root_cause, notes,
+    tokenize = 'unicode61'
 );
 
 -- Raw fault dumps (unprocessed uploads)
@@ -115,6 +121,13 @@ def init_db(path):
     try:
         con = connect(path)
         con.executescript(SCHEMA)
+        # Migrate older case_history tables that predate root_cause/recurrence_flag.
+        for stmt in ("ALTER TABLE case_history ADD COLUMN root_cause TEXT",
+                     "ALTER TABLE case_history ADD COLUMN recurrence_flag INTEGER DEFAULT 0"):
+            try:
+                con.execute(stmt)
+            except sqlite3.OperationalError:
+                pass  # column already exists
         con.commit()
         con.close()
         return "created" if is_new else "ok"
@@ -211,17 +224,77 @@ def add_case(path, entry):
     now = _now()
     cur = con.execute("""INSERT INTO case_history
         (ticket_number, date, server_sn, location, error_fault, parts,
-         solution, engineer, notes, resolution_time_min, report_text,
-         raw_block, created_at)
-        VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+         solution, root_cause, recurrence_flag, engineer, notes,
+         resolution_time_min, report_text, raw_block, created_at)
+        VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
         (entry.get("ticket_number",""), entry.get("date",""),
          entry.get("server_sn",""), entry.get("location",""),
          entry["error_fault"], entry.get("parts",""),
-         entry["solution"], entry.get("engineer",""),
-         entry.get("notes",""), entry.get("resolution_time_min"),
+         entry["solution"], entry.get("root_cause",""),
+         int(entry.get("recurrence_flag") or 0),
+         entry.get("engineer",""), entry.get("notes",""),
+         entry.get("resolution_time_min"),
          entry.get("report_text",""), entry.get("raw_block",""), now))
+    cid = cur.lastrowid
+    con.execute("""INSERT INTO case_history_fts
+        (id, error_fault, parts, solution, root_cause, notes)
+        VALUES (?,?,?,?,?,?)""",
+        (cid, entry["error_fault"], entry.get("parts",""),
+         entry["solution"], entry.get("root_cause",""), entry.get("notes","")))
     con.commit(); con.close()
-    return cur.lastrowid
+    return cid
+
+def search_similar(path, query, k=50):
+    """
+    FTS5 similarity search over case_history for recommend.py.
+    Returns dicts in the field names recommend.diagnose() expects:
+    case_id, case_date, fault_description, root_cause_raw, resolution_raw,
+    recurrence_flag, similarity (rank-decayed, in [0,1]).
+    """
+    toks = [t for t in re.findall(r"[A-Za-z0-9_]+", query or "") if len(t) > 1]
+    if not toks:
+        return []
+    q = " OR ".join(dict.fromkeys(toks))
+    con = connect(path)
+    try:
+        rows = con.execute("""SELECT c.*, case_history_fts.rank AS bm25
+            FROM case_history_fts
+            JOIN case_history c ON c.id = case_history_fts.id
+            WHERE case_history_fts MATCH ? ORDER BY case_history_fts.rank LIMIT ?""",
+            (q, k)).fetchall()
+    except sqlite3.OperationalError:
+        return []
+    finally:
+        con.close()
+    out = []
+    n = len(rows)
+    for i, r in enumerate(rows):
+        # BM25 rank in SQLite FTS5 is negative (more negative = better match);
+        # decay by position since exact score scale isn't meaningfully comparable
+        # to the similarity x recency x success weighting in recommend.py.
+        similarity = 1.0 - (i / n) if n > 1 else 1.0
+        out.append({
+            "case_id": r["id"],
+            "case_date": r["date"] or "",
+            "fault_description": r["error_fault"] or "",
+            "root_cause_raw": r["root_cause"] or "",
+            "resolution_raw": r["solution"] or "",
+            "recurrence_flag": r["recurrence_flag"] or 0,
+            "similarity": similarity,
+        })
+    return out
+
+def notes_for(path, case_ids):
+    """Return {case_id: notes} for the given ids, for recommend.py's support snippets."""
+    if not case_ids:
+        return {}
+    con = connect(path)
+    qmarks = ",".join("?" * len(case_ids))
+    rows = con.execute(
+        f"SELECT id, notes FROM case_history WHERE id IN ({qmarks})", case_ids
+    ).fetchall()
+    con.close()
+    return {r["id"]: r["notes"] or "" for r in rows}
 
 def list_cases(path, page=1, per_page=25, search="", sort_col="id", sort_dir="DESC"):
     con = connect(path)
