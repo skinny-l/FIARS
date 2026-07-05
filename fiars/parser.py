@@ -70,10 +70,10 @@ _CATEGORY_KEYWORDS = {
     "Memory":  ["memory", "dimm", "ram", "ecc", "edac"],
     "CPU":     ["cpu", "processor", "socket"],
     "Power":   ["power", "psu", "supply"],
+    "GPU":     ["gpu", "cuda", "nvidia", "xid", "vbios"],
     "Network": ["nic", "network", "link", "ethernet", "port", "pcie"],
     "Thermal": ["fan", "temp", "thermal", "overheat", "heat"],
     "Board":   ["board", "motherboard", "system board", "backplane"],
-    "GPU":     ["gpu", "cuda", "nvidia", "xid", "vbios"],
 }
 
 

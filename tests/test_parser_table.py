@@ -2,13 +2,69 @@
 import os, sys
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from fiars.parser import parse_ticket
+from fiars.parser import parse_ticket, infer_category
 from fiars.parser_table import parse_dispatch_table, merge_dispatch
 from fiars.report import default_draft, build_report
 from tests.sample_tickets import (
     HDD_TICKET, HDD_TICKET_NUMBER,
     DISPATCH_ROW_HDD, DISPATCH_TABLE_TWO_PARTS,
 )
+
+# Real dispatch table sample where two rows carry an extra trailing line
+# after Engineer (PCIe address/slot + serial), which used to desync every
+# row parsed after them under fixed-width chunking.
+DISPATCH_TABLE_GPU_VARIABLE_ROWS = """Date
+Ticket No#
+Case ID#
+Server SN
+Rack Info
+Faulty Part
+OLD PN
+NEW PN
+Maker
+Model
+Engineer
+26/6/2026
+SHGD0009000009
+SHSJ0009100006
+2KX100011
+TESTDC1_B1_DH2A-B-10-1
+GPU A100 PCIE - SPEX2026062500003
+X0170AD0000004ZY
+Onsite run test to confirm
+A
+NF5468M6
+Sahir
+GPU6 SN: 1323622026394
+6/7/2026
+SHGD0009000010
+SHSJ0009100008
+2KX100012
+TESTDC1_B1_DH2A-A-10-11
+GPU A100 PCIE - SPEX2026070500043
+0000:9b:00.0 SN:1323622026318
+customer provide parts
+A
+NF5468M6
+Jordan | Casey | Alex"""
+
+
+def test_infer_category_gpu_beats_pcie_network_collision():
+    # "PCIE" is also a Network keyword — GPU must win for GPU faults.
+    assert infer_category("GPU A100 PCIE - SPEX2026062500003") == "GPU"
+
+
+def test_parse_row_with_extra_trailing_line_does_not_desync_next_row():
+    rows = parse_dispatch_table(DISPATCH_TABLE_GPU_VARIABLE_ROWS)
+    assert len(rows) == 2
+    assert rows[0]["ticket_no"] == "SHGD0009000009"
+    assert rows[0]["server_sn"] == "2KX100011"
+    assert rows[0]["category"] == "GPU"
+    assert "GPU6 SN" in rows[0]["engineer"]
+    # Second row must start clean — this is what broke before the fix.
+    assert rows[1]["ticket_no"] == "SHGD0009000010"
+    assert rows[1]["server_sn"] == "2KX100012"
+    assert rows[1]["old_pn"] == "0000:9b:00.0 SN:1323622026318"
 
 
 def test_parse_single_row():
