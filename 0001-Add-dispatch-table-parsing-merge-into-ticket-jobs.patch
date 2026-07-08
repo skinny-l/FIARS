@@ -1,0 +1,393 @@
+From 288dd520dfe2e9cc237b8c0abad03b803f9ae4fd Mon Sep 17 00:00:00 2001
+From: skinny-l <azizdj2002@gmail.com>
+Date: Sun, 5 Jul 2026 11:48:38 +0000
+Subject: [PATCH] Add dispatch table parsing, merge into ticket jobs
+
+- fiars/parser_table.py: parse pasted dispatch/assignment table
+  (Date, Ticket No#, Case ID#, Server SN, Rack Info, Faulty Part,
+  OLD PN, NEW PN, Maker, Model, Engineer), match rows to parsed
+  ticket jobs by Server SN -> category -> order of appearance.
+- Auto-fills ticket_number and old/new PN instead of manual entry.
+- Case ID# parsed but unused. Engineer parsed but not merged.
+  Maker/Model kept as server_model_code metadata, not part fields.
+- report.py: old.pn/new.pn now read from the merge, default blank
+  when no dispatch table is supplied (backward compatible).
+- server.py: /api/parse accepts optional dispatch_table field.
+- templates/index.html: optional second textarea for the paste.
+- tests/test_parser_table.py: 9 tests covering parse, merge,
+  category disambiguation, no-match safety, and the report
+  end-to-end.
+---
+ fiars/parser_table.py      | 109 +++++++++++++++++++++++++++++++++++++
+ fiars/report.py            |   4 +-
+ server.py                  |   5 ++
+ templates/index.html       |   6 +-
+ tests/sample_tickets.py    |  63 +++++++++++++++++++++
+ tests/test_parser_table.py | 102 ++++++++++++++++++++++++++++++++++
+ 6 files changed, 286 insertions(+), 3 deletions(-)
+ create mode 100644 fiars/parser_table.py
+ create mode 100644 tests/test_parser_table.py
+
+diff --git a/fiars/parser_table.py b/fiars/parser_table.py
+new file mode 100644
+index 0000000..f9ec6d3
+--- /dev/null
++++ b/fiars/parser_table.py
+@@ -0,0 +1,109 @@
++"""
++parser_table.py — Dispatch/assignment table -> structured rows, matched to jobs.
++
++The dispatch table arrives by email (shift assignment list) and is pasted as
++plain text. Outlook-style copy/paste puts one cell per line: the 11 header
++cells first, then every subsequent group of 11 lines is one row, in this
++fixed column order:
++
++    Date, Ticket No#, Case ID#, Server SN, Rack Info, Faulty Part,
++    OLD PN, NEW PN, Maker, Model, Engineer
++
++Maker/Model describe the *server* (chassis SKU), not the replacement part —
++kept as metadata only, never written into the part fields. Case ID# is
++tracked but unused (no downstream purpose defined).
++
++Rows are matched to parsed ticket jobs (from parser.py) by Server SN, then
++disambiguated by category, then by order of appearance. This is the piece
++that currently has to be typed by hand: Ticket Number, OLD/NEW PN.
++Engineer is parsed (kept in the row dict) but deliberately not merged into
++the job or report — not needed downstream.
++"""
++from __future__ import annotations
++
++from typing import Any
++
++from fiars.parser import infer_category
++
++HEADERS = [
++    "date", "ticket_no", "case_id", "server_sn", "rack_info",
++    "faulty_part", "old_pn", "new_pn", "maker", "model", "engineer",
++]
++
++
++def parse_dispatch_table(raw: str) -> list[dict[str, Any]]:
++    """
++    Parse a pasted dispatch table into row dicts.
++
++    Tolerant of a preamble line before the header (e.g. a shift banner like
++    "Fahrul | Isq | Aziz – BDC02 @ 9:30 am") and of trailing blank lines.
++    Any leftover lines that don't form a complete row of 11 are returned
++    under the '_unparsed' key of the last element's context so nothing is
++    silently dropped — but in practice a well-formed paste divides evenly.
++    """
++    lines = [ln.strip() for ln in raw.splitlines() if ln.strip()]
++
++    # Find the header block: first line that reads exactly "Date".
++    try:
++        start = next(i for i, ln in enumerate(lines) if ln.lower() == "date")
++    except StopIteration:
++        return []
++
++    body = lines[start + len(HEADERS):]
++    rows: list[dict[str, Any]] = []
++    for i in range(0, len(body) - len(HEADERS) + 1, len(HEADERS)):
++        chunk = body[i:i + len(HEADERS)]
++        row = dict(zip(HEADERS, chunk))
++        row["category"] = infer_category(row.get("faulty_part", ""))
++        rows.append(row)
++
++    leftover = len(body) % len(HEADERS)
++    if leftover:
++        rows.append({"_unparsed": body[-leftover:]})
++
++    return rows
++
++
++def merge_dispatch(jobs: list[dict[str, Any]], rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
++    """
++    Match dispatch rows onto parsed jobs (in place) by Server SN, then
++    category, then order of appearance. Returns the same job list.
++
++    Jobs with no matching row are left untouched (ticket_number stays
++    whatever was passed in manually; old_pn/new_pn stay blank) so nothing
++    breaks when the table and the raw paste don't line up — the engineer
++    fills the gap by hand as before.
++    """
++    by_sn: dict[str, list[dict[str, Any]]] = {}
++    for row in rows:
++        sn = row.get("server_sn")
++        if sn:
++            by_sn.setdefault(sn, []).append(row)
++
++    for job in jobs:
++        candidates = by_sn.get(job.get("server_sn", ""), [])
++        if not candidates:
++            job["dispatch_matched"] = False
++            continue
++
++        # Prefer same-category match; fall back to next unconsumed row.
++        same_cat = [r for r in candidates if r.get("category") == job.get("category")]
++        match = same_cat[0] if same_cat else candidates[0]
++        candidates.remove(match)
++
++        job["ticket_number"] = match.get("ticket_no", job.get("ticket_number", ""))
++        job["server_model_code"] = " ".join(
++            x for x in (match.get("maker", ""), match.get("model", "")) if x
++        )
++        job.setdefault("part", {})
++        job["part"]["old_pn"] = match.get("old_pn", "")
++        job["part"]["new_pn"] = match.get("new_pn", "")
++        job["dispatch_matched"] = True
++
++    return jobs
++
++
++if __name__ == "__main__":
++    import json
++    import sys
++    print(json.dumps(parse_dispatch_table(sys.stdin.read()), ensure_ascii=False, indent=2))
+diff --git a/fiars/report.py b/fiars/report.py
+index 95b684b..b39025f 100644
+--- a/fiars/report.py
++++ b/fiars/report.py
+@@ -28,12 +28,12 @@ def default_draft(job: dict[str, Any]) -> dict[str, Any]:
+         "part_kind": ptype,
+         "old": {
+             "model": job.get("part_model", ""),
+-            "pn": "",                      # internal PN — not in the block, engineer fills
++            "pn": part.get("old_pn", ""),  # from dispatch table match, else blank
+             "qn": part.get("sn", ""),
+             "sn": part.get("sn", ""),
+             "mpn": part.get("pn", ""),     # part_pn -> MPN
+         },
+-        "new": {"model": "", "pn": "", "qn": "", "sn": "", "mpn": ""},
++        "new": {"model": "", "pn": part.get("new_pn", ""), "qn": "", "sn": "", "mpn": ""},
+         "remark": "Done",
+     }
+ 
+diff --git a/server.py b/server.py
+index eb016e5..6fdbf33 100644
+--- a/server.py
++++ b/server.py
+@@ -11,6 +11,7 @@ from fiars import db
+ from fiars.extract import extract_text
+ from fiars.config import load_config
+ from fiars.parser import parse_ticket, parse_multi_ticket, search_text
++from fiars.parser_table import parse_dispatch_table, merge_dispatch
+ from fiars.report import build_report, default_draft
+ from fiars.smart_search import smart_search
+ from fiars.diagnostics import get_diagnostics
+@@ -173,6 +174,10 @@ class Handler(BaseHTTPRequestHandler):
+                 if not raw.strip():
+                     return self._json(400, {"error": "Paste the fault block first."})
+                 jobs = parse_multi_ticket(raw, b.get("ticket_number", ""))
++                dispatch_raw = b.get("dispatch_table", "")
++                if dispatch_raw.strip():
++                    rows = parse_dispatch_table(dispatch_raw)
++                    merge_dispatch(jobs, rows)
+                 results = []
+                 for job in jobs:
+                     draft = default_draft(job)
+diff --git a/templates/index.html b/templates/index.html
+index d733aee..d728975 100644
+--- a/templates/index.html
++++ b/templates/index.html
+@@ -105,6 +105,10 @@ th:hover{color:var(--ink)}
+       <div><label>Paste fault description block</label>
+         <textarea id="pRaw" rows="5" placeholder="Paste the raw fault block here…"></textarea></div>
+     </div>
++    <div style="margin-top:10px">
++      <label>Dispatch table (optional — paste the shift assignment email to auto-fill Ticket No# and OLD/NEW PN)</label>
++      <textarea id="pDispatch" rows="4" placeholder="Paste the dispatch/assignment table here (Date, Ticket No#, Case ID#, Server SN, Rack Info, Faulty Part, OLD PN, NEW PN, Maker, Model, Engineer)…"></textarea>
++    </div>
+     <div style="margin-top:10px"><button id="parseBtn">Parse &amp; diagnose</button></div>
+   </div>
+ 
+@@ -439,7 +443,7 @@ loadStats();
+ // ══════ PARSE TICKET (MISSION BRIEFING) ═════════════════════════════════
+ $('parseBtn').onclick=async()=>{
+   const btn=$('parseBtn');btn.disabled=true;btn.innerHTML='<span class="sp"></span>Parsing…';
+-  const r=await api('/api/parse',J({raw:$('pRaw').value,ticket_number:$('pTicket').value}));
++  const r=await api('/api/parse',J({raw:$('pRaw').value,ticket_number:$('pTicket').value,dispatch_table:$('pDispatch').value}));
+   btn.disabled=false;btn.textContent='Parse & diagnose';
+   if(r.error){toast(r.error,1);return}
+   const blocks=r.multi?r.blocks:[r];
+diff --git a/tests/sample_tickets.py b/tests/sample_tickets.py
+index ef23fcc..ea5ee35 100644
+--- a/tests/sample_tickets.py
++++ b/tests/sample_tickets.py
+@@ -34,3 +34,66 @@ From <https://stms.ieisystem.com/beijian/PkgController/showGcsPkgTodoInfo.htm?id
+ """
+ 
+ HDD_TICKET_NUMBER = "SHGD0002014119"
++
++# Dispatch/assignment table sample — one row, matching HDD_TICKET's server SN.
++# Note the dispatch ticket number ("...9999") deliberately differs from
++# HDD_TICKET_NUMBER above, to prove the merge overrides the manually-typed
++# ticket number rather than just filling in when blank.
++DISPATCH_ROW_HDD = """Date
++Ticket No#
++Case ID#
++Server SN
++Rack Info
++Faulty Part
++OLD PN
++NEW PN
++Maker
++Model
++Engineer
++2/7/2026
++SHGD0002019999
++SHSJ0004150001
++21C938088
++MYJHBGDS_B4_DH1B-B-10-40
++Hard drive
++V0232PY0000000ZY
++V0233JP0000000ZY
++Q
++QC5476M6D
++Fahrul Deliver onsite"""
++
++# Real dispatch table sample: one ticket number covering two parts on the
++# same server (Motherboard + Memory), used to test category disambiguation.
++DISPATCH_TABLE_TWO_PARTS = """Date
++Ticket No#
++Case ID#
++Server SN
++Rack Info
++Faulty Part
++OLD PN
++NEW PN
++Maker
++Model
++Engineer
++2/7/2026
++SHGD0002025775
++SHSJ0004155107
++21D738325
++MYJHBBDC02_B1_G1-V-14-13
++Motherboard - high risk have bent pins
++YZMB-02666-106
++YZMB-02666-106 borrow
++Q
++QC6468D7-SG
++Fahrul Deliver onsite
++2/7/2026
++SHGD0002025775
++SHSJ0004155107
++21D738325
++MYJHBBDC02_B1_G1-V-14-13
++Memory
++V0040NM0000000ZY
++V0040NM0000000ZY
++Q
++QC6468D7-SG
++Fahrul Deliver onsite"""
+diff --git a/tests/test_parser_table.py b/tests/test_parser_table.py
+new file mode 100644
+index 0000000..e3ea4ee
+--- /dev/null
++++ b/tests/test_parser_table.py
+@@ -0,0 +1,102 @@
++"""Tests for FIARS: dispatch table parsing and merge into parsed jobs."""
++import os, sys
++sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
++
++from fiars.parser import parse_ticket
++from fiars.parser_table import parse_dispatch_table, merge_dispatch
++from fiars.report import default_draft, build_report
++from tests.sample_tickets import (
++    HDD_TICKET, HDD_TICKET_NUMBER,
++    DISPATCH_ROW_HDD, DISPATCH_TABLE_TWO_PARTS,
++)
++
++
++def test_parse_single_row():
++    rows = parse_dispatch_table(DISPATCH_ROW_HDD)
++    assert len(rows) == 1
++    row = rows[0]
++    assert row["ticket_no"] == "SHGD0002019999"
++    assert row["server_sn"] == "21C938088"
++    assert row["old_pn"] == "V0232PY0000000ZY"
++    assert row["new_pn"] == "V0233JP0000000ZY"
++    assert row["category"] == "Storage"
++
++
++def test_parse_multi_row_same_ticket():
++    rows = parse_dispatch_table(DISPATCH_TABLE_TWO_PARTS)
++    assert len(rows) == 2
++    assert all(r["ticket_no"] == "SHGD0002025775" for r in rows)
++    assert all(r["server_sn"] == "21D738325" for r in rows)
++    cats = {r["category"] for r in rows}
++    assert cats == {"Board", "Memory"}
++
++
++def test_parse_ignores_shift_banner_preamble():
++    banner = "Fahrul | Isq | Aziz – BDC02 @ 9:30 am\n" + DISPATCH_ROW_HDD
++    rows = parse_dispatch_table(banner)
++    assert len(rows) == 1
++    assert rows[0]["server_sn"] == "21C938088"
++
++
++def test_merge_overrides_ticket_number_and_fills_pn():
++    job = parse_ticket(HDD_TICKET, HDD_TICKET_NUMBER)
++    assert job["ticket_number"] == HDD_TICKET_NUMBER  # manually-typed, before merge
++    rows = parse_dispatch_table(DISPATCH_ROW_HDD)
++    merge_dispatch([job], rows)
++    assert job["ticket_number"] == "SHGD0002019999"   # dispatch table wins
++    assert job["part"]["old_pn"] == "V0232PY0000000ZY"
++    assert job["part"]["new_pn"] == "V0233JP0000000ZY"
++    assert job["dispatch_matched"] is True
++
++
++def test_merge_disambiguates_two_parts_by_category():
++    # Same server SN, two categories — must not cross-match.
++    board_job = {"server_sn": "21D738325", "category": "Board", "part": {}}
++    memory_job = {"server_sn": "21D738325", "category": "Memory", "part": {}}
++    rows = parse_dispatch_table(DISPATCH_TABLE_TWO_PARTS)
++    merge_dispatch([board_job, memory_job], rows)
++    assert board_job["part"]["old_pn"] == "YZMB-02666-106"
++    assert board_job["part"]["new_pn"] == "YZMB-02666-106 borrow"
++    assert memory_job["part"]["old_pn"] == "V0040NM0000000ZY"
++    assert memory_job["part"]["new_pn"] == "V0040NM0000000ZY"
++
++
++def test_merge_no_match_leaves_job_untouched():
++    job = parse_ticket(HDD_TICKET, HDD_TICKET_NUMBER)
++    rows = parse_dispatch_table(DISPATCH_TABLE_TWO_PARTS)  # different SN entirely
++    merge_dispatch([job], rows)
++    assert job["ticket_number"] == HDD_TICKET_NUMBER  # untouched, no fabricated match
++    assert job["dispatch_matched"] is False
++
++
++def test_engineer_and_case_id_not_merged_into_job():
++    job = parse_ticket(HDD_TICKET, HDD_TICKET_NUMBER)
++    rows = parse_dispatch_table(DISPATCH_ROW_HDD)
++    merge_dispatch([job], rows)
++    assert "engineer" not in job
++    assert "case_id" not in job
++
++
++def test_maker_model_stored_as_metadata_not_part_fields():
++    job = parse_ticket(HDD_TICKET, HDD_TICKET_NUMBER)
++    rows = parse_dispatch_table(DISPATCH_ROW_HDD)
++    merge_dispatch([job], rows)
++    assert job["server_model_code"] == "Q QC5476M6D"
++    assert job["part"].get("model") != "Q QC5476M6D"
++
++
++def test_end_to_end_report_reflects_dispatch_merge():
++    job = parse_ticket(HDD_TICKET, HDD_TICKET_NUMBER)
++    rows = parse_dispatch_table(DISPATCH_ROW_HDD)
++    merge_dispatch([job], rows)
++    draft = default_draft(job)
++    report = build_report(draft)
++    assert "Ticket Number: SHGD0002019999" in report
++    assert "PN: V0232PY0000000ZY" in report
++    assert "PN: V0233JP0000000ZY" in report
++
++
++if __name__ == "__main__":
++    for name, fn in sorted(globals().items()):
++        if name.startswith("test_") and callable(fn):
++            fn(); print("PASS", name)
+-- 
+2.43.0
+
