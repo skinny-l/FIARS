@@ -1,0 +1,2 @@
+# FIARS core runs on the Python standard library only - nothing to install.
+# For optional semantic/hybrid search (Phase 4), see requirements-ml.txt.
