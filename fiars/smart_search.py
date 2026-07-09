@@ -21,7 +21,7 @@ _SYNONYM_GROUPS = [
     {"network", "nic", "ethernet", "cable"},
     {"motherboard", "mainboard", "board", "backplane"},
     {"bios", "cmos", "firmware", "bmc", "uefi"},
-    {"gpu", "cuda", "nvidia", "vbios", "xid"},
+    {"gpu", "cuda", "nvidia", "vbios", "xid", "retimer", "riser"},
 ]
 
 _WORD_TO_SYNONYMS: dict[str, set[str]] = {}
