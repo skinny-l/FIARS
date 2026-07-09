@@ -10,6 +10,7 @@ Plus kb_articles / kb_error_map for vendor pattern matching.
 """
 from __future__ import annotations
 import json, os, re, sqlite3
+from fiars.smart_search import expand_synonyms
 from datetime import datetime, timezone
 from typing import Any
 
@@ -254,6 +255,7 @@ def search_similar(path, query, k=50):
     toks = [t for t in re.findall(r"[A-Za-z0-9_]+", query or "") if len(t) > 1]
     if not toks:
         return []
+    toks = expand_synonyms(toks)
     q = " OR ".join(dict.fromkeys(toks))
     con = connect(path)
     try:
@@ -361,6 +363,7 @@ def update_raw_dump_status(path, dump_id, status):
 def search_raw_dumps(path, query, limit=20):
     toks = [t for t in re.findall(r"[A-Za-z0-9_]+", query or "") if len(t) > 1]
     if not toks: return list_raw_dumps(path, limit=limit)
+    toks = expand_synonyms(toks)
     q = " OR ".join(dict.fromkeys(toks))
     con = connect(path)
     rows = con.execute("""SELECT r.* FROM raw_dumps_fts

@@ -84,6 +84,40 @@ def test_recurred_case_weighs_lower_than_clean_fix():
     os.remove(path)
 
 
+def test_search_similar_expands_synonyms_psu_matches_power_supply():
+    # No literal 'psu', 'fault', or 'voltage' anywhere in the case — only
+    # 'power supply' wording. A raw-token query for 'PSU fault' should find
+    # nothing; with synonym expansion (psu -> power/voltage) it should.
+    path = _fresh_db()
+    db.add_case(path, {
+        "ticket_number": "T1", "error_fault": "power supply unit failure, no output",
+        "solution": "Replaced power supply", "root_cause": "Faulty power supply component",
+    })
+    results = db.search_similar(path, "PSU fault")
+    assert len(results) == 1
+    assert "power supply" in results[0]["fault_description"]
+    os.remove(path)
+
+
+def test_gpu_synonym_group_includes_retimer_and_riser():
+    # smart_search.py's category map already treats retimer/riser as
+    # GPU-related; the synonym group should match, not silently diverge.
+    from fiars.smart_search import expand_synonyms
+    expanded = expand_synonyms(["retimer"])
+    assert "gpu" in expanded
+    expanded2 = expand_synonyms(["riser"])
+    assert "gpu" in expanded2
+
+
+def test_search_raw_dumps_expands_synonyms_nic_matches_network_card():
+    path = _fresh_db()
+    db.add_raw_dump(path, "log.txt", "text", "/tmp/log.txt",
+                     extracted_text="network interface card link down, ethernet cable fault")
+    results = db.search_raw_dumps(path, "NIC")
+    assert len(results) == 1
+    os.remove(path)
+
+
 if __name__ == "__main__":
     for name, fn in sorted(globals().items()):
         if name.startswith("test_") and callable(fn):
