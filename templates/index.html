@@ -100,6 +100,15 @@ th:hover{color:var(--ink)}
 .pre{white-space:pre-wrap;font-family:ui-monospace,"SF Mono",Menlo,monospace;font-size:12px;
   background:var(--p2);border:1px solid var(--ln);border-radius:var(--r-md);padding:12px}
 
+.report-card{border-color:var(--ln-strong);box-shadow:0 0 0 1px rgba(10,132,255,.08),var(--shadow-1)}
+
+.detail-toggle{display:flex;align-items:center;justify-content:center;gap:6px;cursor:pointer;
+  color:var(--mt);font-size:12.5px;font-weight:590;padding:10px 0;margin-bottom:2px;
+  user-select:none;transition:color .15s var(--ease)}
+.detail-toggle:hover{color:var(--ink-dim)}
+.detail-toggle .chev{transition:transform .2s var(--ease);font-size:13px}
+.detail-toggle.open .chev{transform:rotate(180deg)}
+
 .stat{display:flex;gap:16px;font-size:13px;color:var(--mt);margin-bottom:8px;flex-wrap:wrap}
 .stat b{color:var(--ink);font-weight:650}
 
@@ -182,74 +191,82 @@ th:hover{color:var(--ink)}
   </div>
 
   <div id="parseOut" class="hidden">
-    <!-- SERVER + FAULT (verify on-site) -->
-    <div class="r2">
-      <div class="card">
-        <h2>Server</h2>
-        <div class="kv" id="pServer"></div>
-      </div>
-      <div class="card">
-        <h2>Fault</h2>
-        <div class="kv" id="pFault"></div>
-      </div>
-    </div>
-
-    <!-- SOLUTION (the main thing) -->
-    <div class="card">
-      <h2>Recommended solution</h2>
-      <div id="pSolution" style="font-size:13px"></div>
-    </div>
-
-    <!-- PARTS TO BRING + DIAGNOSTIC COMMANDS -->
-    <div class="r2">
-      <div class="card">
-        <h2>Parts to bring</h2>
-        <div id="pParts" style="font-size:13px"></div>
-      </div>
-      <div class="card">
-        <h2>Diagnostic commands <button class="gh sm" id="copyCmds" style="float:right">Copy all</button></h2>
-        <div id="pCmds" style="font-size:12px"></div>
-      </div>
-    </div>
-
-    <!-- KB PATTERN MATCHES -->
-    <div id="pKB"></div>
-
-    <!-- RELATED KNOWLEDGE -->
-    <div id="pKBR"></div>
-
-    <!-- SIMILAR PAST CASES (recommend.py) -->
-    <div id="pRecommend"></div>
-
-    <!-- REPORT -->
-    <div class="card">
+    <!-- REPORT — right below input, no scrolling past detail to reach it -->
+    <div class="card report-card" id="reportCard">
       <h2>Report template <button class="gh sm" id="copyReport" style="float:right">Copy for OneNote</button></h2>
       <div id="pReport" class="pre"></div>
     </div>
 
-    <!-- LOG CASE (after the job) -->
-    <div class="card">
-      <h2>Log this case</h2>
-      <div class="r3">
-        <div><label>Error/Fault *</label><input id="cErr"></div>
-        <div><label>Parts</label><input id="cParts"></div>
-        <div><label>Solution *</label><input id="cSol"></div>
-      </div>
-      <div class="r3">
-        <div><label>Root cause</label><input id="cCause" placeholder="Optional — feeds future recommendations"></div>
-        <div><label>Engineer</label><input id="cEng"></div>
-        <div><label>Time (min)</label><input id="cTime" type="number" min="0"></div>
-      </div>
-      <div class="r2">
-        <div><label>Notes</label><input id="cNotes"></div>
-        <div><label style="display:flex;align-items:center;gap:6px;margin-top:18px">
-          <input id="cRecur" type="checkbox" style="width:auto"> Fault recurred (previous fix didn't hold)</label></div>
-      </div>
-      <div style="margin-top:10px"><button id="logCase">Save case</button></div>
+    <!-- Everything below is supporting detail — collapsed by default -->
+    <div class="detail-toggle" id="detailToggle">
+      <span id="detailToggleLabel">Show diagnosis details</span>
+      <span class="chev" id="detailChev">⌄</span>
     </div>
+
+    <div id="detailBody" class="hidden">
+      <!-- SERVER + FAULT (verify on-site) -->
+      <div class="r2">
+        <div class="card">
+          <h2>Server</h2>
+          <div class="kv" id="pServer"></div>
+        </div>
+        <div class="card">
+          <h2>Fault</h2>
+          <div class="kv" id="pFault"></div>
+        </div>
+      </div>
+
+      <!-- SOLUTION (the main thing) -->
+      <div class="card">
+        <h2>Recommended solution</h2>
+        <div id="pSolution" style="font-size:13px"></div>
+      </div>
+
+      <!-- PARTS TO BRING + DIAGNOSTIC COMMANDS -->
+      <div class="r2">
+        <div class="card">
+          <h2>Parts to bring</h2>
+          <div id="pParts" style="font-size:13px"></div>
+        </div>
+        <div class="card">
+          <h2>Diagnostic commands <button class="gh sm" id="copyCmds" style="float:right">Copy all</button></h2>
+          <div id="pCmds" style="font-size:12px"></div>
+        </div>
+      </div>
+
+      <!-- KB PATTERN MATCHES -->
+      <div id="pKB"></div>
+
+      <!-- RELATED KNOWLEDGE -->
+      <div id="pKBR"></div>
+
+      <!-- SIMILAR PAST CASES (recommend.py) -->
+      <div id="pRecommend"></div>
+
+      <!-- LOG CASE (after the job) -->
+      <div class="card">
+        <h2>Log this case</h2>
+        <div class="r3">
+          <div><label>Error/Fault *</label><input id="cErr"></div>
+          <div><label>Parts</label><input id="cParts"></div>
+          <div><label>Solution *</label><input id="cSol"></div>
+        </div>
+        <div class="r3">
+          <div><label>Root cause</label><input id="cCause" placeholder="Optional — feeds future recommendations"></div>
+          <div><label>Engineer</label><input id="cEng"></div>
+          <div><label>Time (min)</label><input id="cTime" type="number" min="0"></div>
+        </div>
+        <div class="r2">
+          <div><label>Notes</label><input id="cNotes"></div>
+          <div><label style="display:flex;align-items:center;gap:6px;margin-top:18px">
+            <input id="cRecur" type="checkbox" style="width:auto"> Fault recurred (previous fix didn't hold)</label></div>
+        </div>
+        <div style="margin-top:10px"><button id="logCase">Save case</button></div>
+      </div>
     </div>
   </div>
 </div>
+
 
 <!-- ═══ KNOWLEDGE BASE ═══ -->
 <div class="pane" id="p-search">
@@ -609,7 +626,19 @@ $('parseBtn').onclick=async()=>{
   $('cParts').value=(first.job.part||{}).type||'';
   $('cSol').value=(first.kb_results&&first.kb_results[0])?first.kb_results[0].solution:'';
   const cfg=await api('/api/config');if(cfg.engineer_name)$('cEng').value=cfg.engineer_name;
-  $('parseOut').scrollIntoView({behavior:'smooth'});
+
+  // Collapse detail on every fresh parse so the report is what's in view —
+  // no scrolling past yesterday's diagnosis detail to reach today's copy.
+  $('detailBody').classList.add('hidden');
+  $('detailToggle').classList.remove('open');
+  $('detailToggleLabel').textContent='Show diagnosis details';
+  $('reportCard').scrollIntoView({behavior:'smooth',block:'start'});
+};
+
+$('detailToggle').onclick=()=>{
+  const open=$('detailBody').classList.toggle('hidden')===false;
+  $('detailToggle').classList.toggle('open',open);
+  $('detailToggleLabel').textContent=open?'Hide diagnosis details':'Show diagnosis details';
 };
 
 $('copyReport').onclick=()=>{
