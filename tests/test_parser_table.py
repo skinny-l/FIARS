@@ -8,6 +8,7 @@ from fiars.report import default_draft, build_report
 from tests.sample_tickets import (
     HDD_TICKET, HDD_TICKET_NUMBER,
     DISPATCH_ROW_HDD, DISPATCH_TABLE_TWO_PARTS,
+    MB_TICKET, MB_TICKET_NUMBER, DISPATCH_TABLE_MB_PLUS_MEMORY,
 )
 
 # Real dispatch table sample where two rows carry an extra trailing line
@@ -150,6 +151,47 @@ def test_end_to_end_report_reflects_dispatch_merge():
     assert "Ticket Number: SHGD0002019999" in report
     assert "PN: V0232PY0000000ZY" in report
     assert "PN: V0233JP0000000ZY" in report
+
+
+def test_merge_attaches_unconsumed_row_as_extra_part():
+    # ONE job (one fault block), but TWO dispatch rows for the same ticket
+    # (Memory + Motherboard) — the leftover row must not be dropped.
+    job = parse_ticket(MB_TICKET, MB_TICKET_NUMBER)
+    rows = parse_dispatch_table(DISPATCH_TABLE_MB_PLUS_MEMORY)
+    merge_dispatch([job], rows)
+    assert job["dispatch_matched"] is True
+    # Primary part (matched by category = Memory, since fault_type is Memory)
+    assert job["part"]["old_pn"] == "V0040E20000000ZY"
+    assert job["part"]["new_pn"] == "V0040E20000000ZY"
+    # Leftover Motherboard row preserved, not discarded
+    assert len(job["extra_parts"]) == 1
+    assert job["extra_parts"][0]["old_pn"] == "YZMB-03296-10F"
+    assert job["extra_parts"][0]["new_pn"] == "YZMB-03296-10F"
+
+
+def test_draft_and_report_combine_both_parts_into_one_report():
+    job = parse_ticket(MB_TICKET, MB_TICKET_NUMBER)
+    rows = parse_dispatch_table(DISPATCH_TABLE_MB_PLUS_MEMORY)
+    merge_dispatch([job], rows)
+    draft = default_draft(job)
+    report = build_report(draft)
+
+    # Single header, not duplicated
+    assert report.count("Ticket Number:") == 1
+    assert report.count("Server SN:") == 1
+    assert report.count("Location:") == 1
+    assert "Ticket Number: SHGD0002032731" in report
+
+    # Both PNs present in the one report
+    assert "V0040E20000000ZY" in report
+    assert "YZMB-03296-10F" in report
+
+    # Extra block titled by its own part type, not the primary "part_kind"
+    assert "Old Motherboard" in report
+    assert "New Motherboard" in report
+
+    # Single Remark at the end, not one per part
+    assert report.count("Remark:") == 1
 
 
 if __name__ == "__main__":

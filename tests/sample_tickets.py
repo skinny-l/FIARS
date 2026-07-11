@@ -97,3 +97,61 @@ V0040NM0000000ZY
 Q
 QC6468D7-SG
 Fahrul Deliver onsite"""
+
+# Real-world case: ONE fault-description block (one job) but the dispatch
+# table carries two rows for the same ticket/server SN — Memory and
+# Motherboard both replaced under one ticket. Used to verify that both
+# parts land in a single report instead of one PN being dropped, and
+# instead of the ticket being split into two separate block reports.
+MB_TICKET = """工单标签/tags：
+60天内重复报修次数/fault_60day_rt：0
+主机业务属性/idc_kind：核心机房
+Priority：normal
+server_model：S520-B3 server_product：SA5280LM6D
+服务器SN/Server SN：21B916171
+机柜位置/Location：MYJHBGDS_B2_DH1A-H-10
+起始U位/ unit_no: 33
+服务器厂商/manufacturer:Inspur
+部件厂商/part_manufacturer:Inspur
+部件类型/part_type:Motherboard
+故障明细/Fault_Detail:Memory CE (Count) > Max (Kernel)
+故障类型/fault_type:Memory
+故障描述/Fault Description:Memory CE (Count) > Max (Kernel)
+30天内重复报修次数/fault_30day_rt：0
+"""
+
+MB_TICKET_NUMBER = "SHGD0002032731"
+
+DISPATCH_TABLE_MB_PLUS_MEMORY = """Date
+Ticket No#
+Case ID#
+Server SN
+Rack Info
+Faulty Part
+OLD PN
+NEW PN
+Maker
+Model
+Engineer
+10/7/2026
+SHGD0002032731
+SHSJ0004170384
+21B916171
+MYJHBGDS_B2_DH1A-H-10-33
+Memory
+V0040E20000000ZY
+V0040E20000000ZY
+I
+SA5280LM6D
+Haikal | Xianyao | Zul Deliver onsite
+10/7/2026
+SHGD0002032731
+SHSJ0004170384
+21B916171
+MYJHBGDS_B2_DH1A-H-10-33
+Motherboard
+YZMB-03296-10F
+YZMB-03296-10F
+I
+SA5280LM6D
+Haikal | Xianyao | Zul Deliver onsite"""
