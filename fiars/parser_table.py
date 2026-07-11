@@ -87,16 +87,32 @@ def merge_dispatch(jobs: list[dict[str, Any]], rows: list[dict[str, Any]]) -> li
     Match dispatch rows onto parsed jobs (in place) by Server SN, then
     category, then order of appearance. Returns the same job list.
 
-    Jobs with no matching row are left untouched (ticket_number stays
-    whatever was passed in manually; old_pn/new_pn stay blank) so nothing
-    breaks when the table and the raw paste don't line up — the engineer
-    fills the gap by hand as before.
+    A single fault-description block (one job) commonly covers a whole
+    ticket that touches more than one part — e.g. a bent-pin motherboard
+    swap that also required a RAM swap. The dispatch table then carries one
+    row per part, all under the same ticket/server SN. The first
+    same-category (or first available) row becomes the job's primary part
+    (job["part"]), same as before; any further rows left over for that same
+    server SN are attached as job["extra_parts"] so their PN data isn't
+    dropped. Jobs with no matching row are left untouched (ticket_number
+    stays whatever was passed in manually; old_pn/new_pn stay blank) so
+    nothing breaks when the table and the raw paste don't line up — the
+    engineer fills the gap by hand as before.
     """
     by_sn: dict[str, list[dict[str, Any]]] = {}
     for row in rows:
         sn = row.get("server_sn")
         if sn:
             by_sn.setdefault(sn, []).append(row)
+
+    # Track, per server SN, which jobs reference it — so leftover dispatch
+    # rows (extra parts on the same ticket) can be folded into the last job
+    # for that SN rather than silently discarded.
+    jobs_by_sn: dict[str, list[dict[str, Any]]] = {}
+    for job in jobs:
+        sn = job.get("server_sn", "")
+        if sn:
+            jobs_by_sn.setdefault(sn, []).append(job)
 
     for job in jobs:
         candidates = by_sn.get(job.get("server_sn", ""), [])
@@ -116,7 +132,34 @@ def merge_dispatch(jobs: list[dict[str, Any]], rows: list[dict[str, Any]]) -> li
         job.setdefault("part", {})
         job["part"]["old_pn"] = match.get("old_pn", "")
         job["part"]["new_pn"] = match.get("new_pn", "")
+        # The dispatch row's own faulty-part label is more reliable than the
+        # ticket's part_type field for naming the block (e.g. a ticket whose
+        # fault was logged under part_type "Motherboard" can still be
+        # dispatched/matched against the "Memory" row by category) — kept
+        # separately so report.py can prefer it without disturbing part.type.
+        if match.get("faulty_part"):
+            job["part"]["dispatch_label"] = match["faulty_part"]
         job["dispatch_matched"] = True
+
+    # Second pass: any dispatch rows still unconsumed for a server SN belong
+    # to a part not covered by its own fault-description block (e.g. RAM
+    # swapped alongside a motherboard, with only the motherboard block
+    # present in the raw paste). Attach them to the last job for that SN as
+    # extra_parts so build_report can render an additional Old/New block.
+    for sn, candidates in by_sn.items():
+        if not candidates:
+            continue
+        sn_jobs = jobs_by_sn.get(sn, [])
+        if not sn_jobs:
+            continue
+        target = sn_jobs[-1]
+        target.setdefault("extra_parts", [])
+        for row in candidates:
+            target["extra_parts"].append({
+                "type":   row.get("faulty_part", ""),
+                "old_pn": row.get("old_pn", ""),
+                "new_pn": row.get("new_pn", ""),
+            })
 
     return jobs
 
