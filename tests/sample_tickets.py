@@ -155,3 +155,68 @@ YZMB-03296-10F
 I
 SA5280LM6D
 Haikal | Xianyao | Zul Deliver onsite"""
+
+# Real-world case: TWO 工单标签/tags fault blocks under one ticket — same
+# server SN, two distinct GPU Xid events (Xid 95 uncontained ECC, and a
+# separate remapped-rows event) — but only ONE dispatch-table row for that
+# server SN (the GPU itself was only dispatched once). Used to verify the
+# two blocks combine into a single note (shared header, one Remark) with
+# each block keeping its own Details line and its own part data, instead
+# of rendering as two fully separate reports.
+GPU_TWO_BLOCK_TICKET = """工单标签/tags：
+60天内重复报修次数/fault_60day_rt：0
+主机业务属性/idc_kind：核心机房
+Priority：normal
+server_model：NF5468M6 server_product：G26S2-I8CD4-WW
+服务器SN/Server SN：2KB900226
+机柜位置/Location：MYJHBGDS_B2_DH2A-A-04
+起始U位/ unit_no: 11
+服务器厂商/manufacturer:Inspur
+部件位置/part_position:37:00
+故障明细/Fault_Detail:xid 95 Uncontained ECC error occurred
+故障类型/fault_type:GPU
+故障描述/Fault Description:diff:371;NVRM: Xid (PCI:0000:37:00): 95, pid=5171, Uncontained: FBHUB. RST: Yes, D-RST: No
+30天内重复报修次数/fault_30day_rt：0
+工单标签/tags：
+60天内重复报修次数/fault_60day_rt：0
+主机业务属性/idc_kind：核心机房
+Priority：normal
+server_model：NF5468M6 server_product：G26S2-I8CD4-WW
+服务器SN/Server SN：2KB900226
+机柜位置/Location：MYJHBGDS_B2_DH2A-A-04
+起始U位/ unit_no: 11
+服务器厂商/manufacturer:Inspur
+部件位置/part_position:0000:37:00.0
+部件厂商/part_manufacturer:Nvidia
+部件SN/part_sn:1323622028016
+部件PN/part_pn:900-21001-0020-100
+故障明细/Fault_Detail:Remapped Rows pending With Volatile DRAM Uncorrectable > 0
+故障类型/fault_type:GPU
+故障描述/Fault Description:RemappedRows Pending:Yes,Volatile DRAMUncorrectable:2, need to reset GPU or server.
+30天内重复报修次数/fault_30day_rt：0
+"""
+
+GPU_TICKET_NUMBER = "SHGD0002034312"
+
+DISPATCH_ROW_GPU_SINGLE = """Date
+Ticket No#
+Case ID#
+Server SN
+Rack Info
+Faulty Part
+OLD PN
+NEW PN
+Maker
+Model
+Engineer
+12/7/2026
+SHGD0002034312
+SHSJ0004173985
+2KB900226
+MYJHBGDS_B2_DH2A-A-04-11
+GPU A100 PCIE - SPEX2026071100090
+0000:37:00.0 SN: 1323622028016
+run FD and collect logs update in sheet first
+A
+NF5468M6
+Hafidz"""

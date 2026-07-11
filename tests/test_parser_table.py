@@ -2,13 +2,14 @@
 import os, sys
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from fiars.parser import parse_ticket, infer_category
+from fiars.parser import parse_ticket, parse_multi_ticket, infer_category
 from fiars.parser_table import parse_dispatch_table, merge_dispatch
-from fiars.report import default_draft, build_report
+from fiars.report import default_draft, build_report, build_combined_report
 from tests.sample_tickets import (
     HDD_TICKET, HDD_TICKET_NUMBER,
     DISPATCH_ROW_HDD, DISPATCH_TABLE_TWO_PARTS,
     MB_TICKET, MB_TICKET_NUMBER, DISPATCH_TABLE_MB_PLUS_MEMORY,
+    GPU_TWO_BLOCK_TICKET, GPU_TICKET_NUMBER, DISPATCH_ROW_GPU_SINGLE,
 )
 
 # Real dispatch table sample where two rows carry an extra trailing line
@@ -192,6 +193,67 @@ def test_draft_and_report_combine_both_parts_into_one_report():
 
     # Single Remark at the end, not one per part
     assert report.count("Remark:") == 1
+
+
+def test_infer_category_dram_does_not_false_match_ram():
+    # "DRAM"/"DRAMUncorrectable" must not trip the Memory "ram" keyword —
+    # this is GPU on-die memory, not a DIMM. Regression for a substring
+    # match bug ("ram" matching inside "dram").
+    text = ("RemappedRows Pending:Yes,Volatile DRAMUncorrectable:2, "
+            "need to reset GPU or server.")
+    assert infer_category(text) == "GPU"
+
+
+def test_two_tags_blocks_same_ticket_combine_into_one_report():
+    # Two 工单标签/tags blocks (two distinct GPU Xid events), same ticket,
+    # same server SN, but only one dispatch row for that SN — must combine
+    # into a single note, not two fully separate block reports.
+    jobs = parse_multi_ticket(GPU_TWO_BLOCK_TICKET, GPU_TICKET_NUMBER)
+    assert len(jobs) == 2
+    rows = parse_dispatch_table(DISPATCH_ROW_GPU_SINGLE)
+    merge_dispatch(jobs, rows)
+    drafts = [default_draft(j) for j in jobs]
+    report = build_combined_report(drafts)
+
+    # Single shared header
+    assert report.count("Ticket Number:") == 1
+    assert report.count("Server SN:") == 1
+    assert report.count("Location:") == 1
+    assert "Ticket Number: SHGD0002034312" in report
+
+    # Both blocks' own Details lines preserved, each with its own slot
+    assert report.count("Details:") == 2
+    assert "slot 37:00" in report
+    assert "slot 0000:37:00.0" in report
+
+    # Both blocks' part data present
+    assert "0000:37:00.0 SN: 1323622028016" in report          # block 1, from dispatch
+    assert "900-21001-0020-100" in report                        # block 2, from ticket text
+
+    # Both blocks correctly titled GPU, not generic "Part" or wrong category
+    assert report.count("Old GPU") == 2
+    assert report.count("New GPU") == 2
+
+    # Single Remark at the end
+    assert report.count("Remark:") == 1
+
+
+def test_combined_report_does_not_merge_different_tickets():
+    # Different ticket numbers / server SNs must stay as separate reports
+    # even when passed through build_combined_report together.
+    job_a = parse_ticket(HDD_TICKET, HDD_TICKET_NUMBER)
+    rows = parse_dispatch_table(DISPATCH_ROW_HDD)
+    merge_dispatch([job_a], rows)
+    draft_a = default_draft(job_a)
+
+    board_job = {"server_sn": "21D738325", "category": "Board", "part": {},
+                 "ticket_number": "SHGD0002025775", "location_full": "SOMEWHERE"}
+    draft_b = default_draft(board_job)
+
+    combined = build_combined_report([draft_a, draft_b])
+    assert combined.count("Ticket Number:") == 2
+    assert "SHGD0002019999" in combined
+    assert "SHGD0002025775" in combined
 
 
 if __name__ == "__main__":

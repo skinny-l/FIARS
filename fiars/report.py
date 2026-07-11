@@ -50,11 +50,23 @@ def default_draft(job: dict[str, Any]) -> dict[str, Any]:
     details = f"Replaced {ptype} (slot {pos}). Issue resolved." if pos \
         else f"Replaced {ptype}. Issue resolved."
 
-    # Title the primary Old/New block from the matched dispatch row's own
-    # faulty-part label when available — more reliable than the ticket's
-    # part_type field, which can disagree with which dispatch row actually
-    # matched (see parser_table.merge_dispatch). Falls back to part_type.
-    block_kind = _clean_part_title(part.get("dispatch_label", "")) if part.get("dispatch_label") else ptype
+    # Title the primary Old/New block with the most specific name available:
+    # 1) the matched dispatch row's own faulty-part label (most reliable —
+    #    see parser_table.merge_dispatch, since the ticket's part_type can
+    #    disagree with which dispatch row actually matched);
+    # 2) the ticket's own part_type field;
+    # 3) the inferred fault category (e.g. "GPU"), for jobs with no part_type
+    #    and no dispatch row of their own (extra fault blocks on a ticket
+    #    where only one dispatch row existed);
+    # 4) generic "Part" if none of the above yield anything.
+    if part.get("dispatch_label"):
+        block_kind = _clean_part_title(part["dispatch_label"])
+    elif part.get("type"):
+        block_kind = ptype
+    elif job.get("category") and job["category"] != "Other":
+        block_kind = job["category"]
+    else:
+        block_kind = "Part"
 
     # Extra parts (e.g. RAM swapped alongside the motherboard) come from
     # unconsumed dispatch-table rows on the same ticket/server SN — see
@@ -137,6 +149,79 @@ def build_report(draft: dict[str, Any]) -> str:
         f"Remark: {draft.get('remark','')}",
     ]
     return "\n".join(lines)
+
+
+def _base_ticket(ticket_number: str) -> str:
+    """`"SHGD0002034312#2"` -> `"SHGD0002034312"` (strip the #N sub-block suffix)."""
+    return (ticket_number or "").split("#")[0]
+
+
+def _segment(kind: str, details: str, old: dict[str, str], new: dict[str, str]) -> list[str]:
+    """One Details + Old/New pair, as used inside both build_report and
+    build_combined_report."""
+    lines = [f"Details: {details}", ""]
+    lines.append(_part_block(f"Old {kind}", old))
+    lines.append("")
+    lines.append(_part_block(f"New {kind}", new))
+    return lines
+
+
+def build_combined_report(drafts: list[dict[str, Any]]) -> str:
+    """
+    Combine multiple drafts that belong to the same ticket + server SN
+    (e.g. two separate 工单标签/tags fault blocks logged under one ticket,
+    such as two distinct Xid events on the same GPU) into a single note:
+    one shared header (Date/Ticket Number/Server SN/Location), one
+    Details+Old/New segment per draft — keeping each block's own
+    slot-specific Details wording and its own part data — and a single
+    Remark at the end.
+
+    Drafts are grouped by (base ticket number, server SN); only drafts
+    within the same group are combined. Groups are emitted in the order
+    their first draft appears. Falls back to build_report for a lone draft.
+    """
+    if not drafts:
+        return ""
+    if len(drafts) == 1:
+        return build_report(drafts[0])
+
+    groups: list[tuple[str, str]] = []
+    by_group: dict[tuple[str, str], list[dict[str, Any]]] = {}
+    for d in drafts:
+        key = (_base_ticket(d.get("ticket_number", "")), d.get("server_sn", ""))
+        if key not in by_group:
+            groups.append(key)
+            by_group[key] = []
+        by_group[key].append(d)
+
+    reports = []
+    for key in groups:
+        group = by_group[key]
+        if len(group) == 1:
+            reports.append(build_report(group[0]))
+            continue
+
+        head = group[0]
+        lines = [
+            f"Date: {head.get('date','')}",
+            f"Ticket Number: {_base_ticket(head.get('ticket_number',''))}",
+            f"Server SN: {head.get('server_sn','')}",
+            f"Location: {head.get('location','')}",
+            "",
+        ]
+        for i, d in enumerate(group):
+            kind = d.get("part_kind", "Part") or "Part"
+            lines += _segment(kind, d.get("details", ""), d.get("old", {}), d.get("new", {}))
+            for ep in d.get("extra_parts", []):
+                ep_kind = ep.get("kind", "Part") or "Part"
+                lines += ["", _part_block(f"Old {ep_kind}", ep.get("old", {})),
+                          "", _part_block(f"New {ep_kind}", ep.get("new", {}))]
+            if i < len(group) - 1:
+                lines.append("")
+        lines += ["", f"Remark: {head.get('remark','Done')}"]
+        reports.append("\n".join(lines))
+
+    return "\n\n".join(reports)
 
 
 if __name__ == "__main__":
