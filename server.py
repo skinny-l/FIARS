@@ -13,7 +13,7 @@ from fiars.config import load_config
 from fiars.parser import parse_ticket, parse_multi_ticket, search_text
 from fiars.parser_table import parse_dispatch_table, merge_dispatch
 from fiars.recommend import diagnose
-from fiars.report import build_report, default_draft
+from fiars.report import build_report, build_combined_report, default_draft
 from fiars.smart_search import smart_search
 from fiars.diagnostics import get_diagnostics
 from fiars.bulk_parse import parse_bulk
@@ -201,9 +201,14 @@ class Handler(BaseHTTPRequestHandler):
                 # Single block: return flat (backwards compatible)
                 if len(results) == 1:
                     return self._json(200, results[0])
-                # Multi-block: return array
+                # Multi-block: return array, plus a combined report that
+                # merges blocks sharing the same base ticket number + server
+                # SN into one note (shared header, one Details+Old/New
+                # segment per block, single Remark) instead of one fully
+                # separate report per block.
+                combined = build_combined_report([r["draft"] for r in results])
                 return self._json(200, {"multi": True, "blocks": results,
-                    "count": len(results)})
+                    "count": len(results), "combined_report": combined})
 
             if path == "/api/report":
                 b = self._body()

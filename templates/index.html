@@ -566,8 +566,12 @@ $('parseBtn').onclick=async()=>{
   $('pCmds').innerHTML=(diag.log_collection||[]).map(l=>`<div style="color:var(--wn);margin-bottom:2px">⚠ ${esc(l)}</div>`).join('')
     +cmds.map(c=>`<div style="margin:4px 0"><code style="background:var(--p2);padding:2px 6px;border-radius:3px;user-select:all;cursor:pointer" title="Click to select">${esc(c.cmd)}</code><span style="color:var(--mt);margin-left:6px;font-size:11px">${esc(c.desc)}</span></div>`).join('');
 
-  // Report
-  $('pReport').textContent=blocks.map((b,i)=>blocks.length>1?`--- Block ${i+1}: ${b.job.fault_type||'?'} ---\n${b.report}`:b.report).join('\n\n');
+  // Report — server combines same-ticket blocks into one note (shared
+  // header, per-block Details+Old/New, single Remark); falls back to the
+  // per-block join only if the server didn't send a combined report.
+  $('pReport').textContent = r.multi
+    ? (r.combined_report || blocks.map((b,i)=>`--- Block ${i+1}: ${b.job.fault_type||'?'} ---\n${b.report}`).join('\n\n'))
+    : first.report;
 
   // KB pattern matches
   const pk=$('pKB');pk.innerHTML='';

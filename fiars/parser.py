@@ -76,11 +76,21 @@ _CATEGORY_KEYWORDS = {
     "Board":   ["board", "motherboard", "system board", "backplane"],
 }
 
+# Word-boundary matchers per category, built once. Short/ambiguous keywords
+# (e.g. "ram", "port") must not match as a bare substring inside unrelated
+# words — e.g. "ram" inside "DRAM"/"VRAM" (GPU on-die memory, not a DIMM) or
+# "program"; "port" inside "important". \b works fine here since keywords
+# are plain alphanumerics.
+_CATEGORY_PATTERNS = {
+    cat: re.compile(r"\b(?:" + "|".join(re.escape(k) for k in kws) + r")\b")
+    for cat, kws in _CATEGORY_KEYWORDS.items()
+}
+
 
 def infer_category(*texts: str) -> str:
     blob = " ".join(t for t in texts if t).lower()
-    for cat, kws in _CATEGORY_KEYWORDS.items():
-        if any(kw in blob for kw in kws):
+    for cat, pattern in _CATEGORY_PATTERNS.items():
+        if pattern.search(blob):
             return cat
     return "Other"
 
