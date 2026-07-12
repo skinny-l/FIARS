@@ -5,7 +5,7 @@
 :root{
   /* macOS dark system surfaces */
   --bg:#1c1c1e;--p:#2c2c2e;--p2:#3a3a3c;--p3:#48484a;
-  --ln:rgba(255,255,255,.11);--ln-strong:rgba(255,255,255,.18);
+  --ln:rgba(255,255,255,.14);--ln-strong:rgba(255,255,255,.22);
   --ink:#f5f5f7;--ink-dim:#d1d1d6;--mt:#98989d;
 
   /* Apple system colors (dark mode values) */
@@ -44,20 +44,29 @@ header .sub{color:var(--mt);font-size:11.5px}
 
 .pane{display:none;max-width:1040px;margin:0 auto;padding:16px 20px 40px} .pane.on{display:block}
 
-.card{background:var(--p);border:1px solid var(--ln);border-radius:var(--r-lg);padding:16px 18px;margin-bottom:12px}
-.card h2{font-size:11px;text-transform:uppercase;letter-spacing:.65px;color:var(--mt);margin:0 0 12px;font-weight:650}
+.card{background:var(--p);border:1px solid var(--ln);border-radius:var(--r-lg);padding:18px 20px;margin-bottom:16px}
+.card h2{font-size:11px;text-transform:uppercase;letter-spacing:.7px;color:var(--mt);margin:0 0 14px;font-weight:650}
 
-label{display:block;font-size:12.5px;color:var(--mt);margin:10px 0 4px;font-weight:500}
-input,textarea,select{width:100%;background:var(--p2);border:1px solid transparent;color:var(--ink);
-  border-radius:var(--r-md);padding:8px 11px;font:inherit;transition:border-color .15s var(--ease),box-shadow .15s var(--ease)}
-input:focus,textarea:focus,select:focus{outline:none;border-color:var(--ac);box-shadow:0 0 0 3.5px rgba(10,132,255,.28)}
+label{display:block;font-size:12.5px;color:var(--ink-dim);margin:12px 0 5px;font-weight:600;letter-spacing:.1px}
+input,textarea,select{width:100%;background:var(--p2);border:1px solid var(--ln);color:var(--ink);
+  border-radius:var(--r-md);padding:9px 12px;font:inherit;transition:border-color .15s var(--ease),box-shadow .15s var(--ease),background .15s var(--ease)}
+input:hover,textarea:hover,select:hover{border-color:var(--ln-strong)}
+input:focus,textarea:focus,select:focus{outline:none;background:var(--p3);border-color:var(--ac);box-shadow:0 0 0 3.5px rgba(10,132,255,.28)}
 input::placeholder,textarea::placeholder{color:var(--mt);opacity:.7}
 textarea{resize:vertical;font-family:ui-monospace,"SF Mono",Menlo,monospace;font-size:12px}
+textarea::-webkit-resizer{background:transparent}
 input[type=checkbox]{width:auto;accent-color:var(--ac)}
 
-.r2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
-.r3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px}
+.r2{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+.r3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:14px}
 @media(max-width:640px){.r2,.r3{grid-template-columns:1fr}}
+
+/* Ticket number is the field typed into on every ticket — give it a fixed
+   narrow column instead of stretching 1fr/1fr to match the tall textarea
+   beside it, which used to leave a dead gap under a short input. */
+.input-row{display:grid;grid-template-columns:230px 1fr;gap:14px;align-items:start}
+.ticket-field input{font-size:15px;font-weight:650;letter-spacing:.2px}
+@media(max-width:640px){.input-row{grid-template-columns:1fr}}
 
 button{background:var(--br);color:#fff;border:0;border-radius:var(--r-pill);padding:8px 16px;
   font:inherit;font-weight:600;font-size:13px;cursor:pointer;transition:filter .15s var(--ease),transform .1s var(--ease)}
@@ -97,10 +106,13 @@ th:hover{color:var(--ink)}
 .pager{display:flex;gap:6px;align-items:center;justify-content:center;margin-top:12px;font-size:13px}
 .pager button{padding:5px 12px}
 
-.pre{white-space:pre-wrap;font-family:ui-monospace,"SF Mono",Menlo,monospace;font-size:12px;
-  background:var(--p2);border:1px solid var(--ln);border-radius:var(--r-md);padding:12px}
+.pre{white-space:pre-wrap;font-family:ui-monospace,"SF Mono",Menlo,monospace;font-size:12.5px;line-height:1.7;
+  background:var(--p2);border:1px solid var(--ln);border-radius:var(--r-md);padding:14px 16px}
 
-.report-card{border-color:var(--ln-strong);box-shadow:0 0 0 1px rgba(10,132,255,.08),var(--shadow-1)}
+.report-card{border-color:var(--ac);box-shadow:0 0 0 1px rgba(10,132,255,.14),var(--shadow-1)}
+.report-card h2{font-size:12.5px;text-transform:none;letter-spacing:0;color:var(--ac-2);font-weight:700;margin-bottom:12px}
+.report-card button.gh{background:rgba(10,132,255,.14);border-color:rgba(10,132,255,.4);color:var(--ac-2);font-weight:650}
+.report-card button.gh:hover{background:rgba(10,132,255,.22)}
 
 .detail-toggle{display:flex;align-items:center;justify-content:center;gap:6px;cursor:pointer;
   color:var(--mt);font-size:12.5px;font-weight:590;padding:10px 0;margin-bottom:2px;
@@ -178,16 +190,16 @@ th:hover{color:var(--ink)}
 <!-- ═══ PARSE TICKET (MAIN) ═══ -->
 <div class="pane on" id="p-parse">
   <div class="card">
-    <div class="r2" style="align-items:end">
-      <div><label>Ticket number</label><input id="pTicket" placeholder="SHGD0002014119"></div>
+    <div class="input-row">
+      <div class="ticket-field"><label>Ticket number</label><input id="pTicket" placeholder="SHGD0002014119"></div>
       <div><label>Paste fault description block</label>
         <textarea id="pRaw" rows="5" placeholder="Paste the raw fault block here…"></textarea></div>
     </div>
-    <div style="margin-top:10px">
+    <div style="margin-top:14px">
       <label>Dispatch table (optional — paste the shift assignment email to auto-fill Ticket No# and OLD/NEW PN)</label>
       <textarea id="pDispatch" rows="4" placeholder="Paste the dispatch/assignment table here (Date, Ticket No#, Case ID#, Server SN, Rack Info, Faulty Part, OLD PN, NEW PN, Maker, Model, Engineer)…"></textarea>
     </div>
-    <div style="margin-top:10px"><button id="parseBtn">Parse &amp; diagnose</button></div>
+    <div style="margin-top:18px"><button id="parseBtn">Parse &amp; diagnose</button></div>
   </div>
 
   <div id="parseOut" class="hidden">
