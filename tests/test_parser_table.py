@@ -10,6 +10,7 @@ from tests.sample_tickets import (
     DISPATCH_ROW_HDD, DISPATCH_TABLE_TWO_PARTS,
     MB_TICKET, MB_TICKET_NUMBER, DISPATCH_TABLE_MB_PLUS_MEMORY,
     GPU_TWO_BLOCK_TICKET, GPU_TICKET_NUMBER, DISPATCH_ROW_GPU_SINGLE,
+    RAM_X2_TICKET, RAM_X2_TICKET_NUMBER, DISPATCH_TABLE_RAM_X2_PLUS_MB_NIC,
 )
 
 # Real dispatch table sample where two rows carry an extra trailing line
@@ -254,6 +255,58 @@ def test_combined_report_does_not_merge_different_tickets():
     assert combined.count("Ticket Number:") == 2
     assert "SHGD0002019999" in combined
     assert "SHGD0002025775" in combined
+
+
+def test_multi_unit_row_matches_each_same_category_job_without_being_exhausted():
+    # "Memory x2" is one dispatch row describing 2 identical DIMMs. Two
+    # separate RAM fault blocks on the same ticket must BOTH match this row
+    # (same PN) rather than the row being consumed after the first match.
+    jobs = parse_multi_ticket(RAM_X2_TICKET, RAM_X2_TICKET_NUMBER)
+    assert len(jobs) == 2
+    rows = parse_dispatch_table(DISPATCH_TABLE_RAM_X2_PLUS_MB_NIC)
+    merge_dispatch(jobs, rows)
+
+    for j in jobs:
+        assert j["dispatch_matched"] is True
+        assert j["part"]["dispatch_label"] == "Memory x2"
+        assert j["part"]["old_pn"] == "V0040J30000000ZY"
+        assert j["part"]["new_pn"] == "V0040J30000000ZY"
+
+    # Distinct physical DIMMs — their own SNs must NOT be mixed up between
+    # jobs (this was the actual reported bug: job 2's SN ended up paired
+    # with the Motherboard row's PN under a wrong "Motherboard" title).
+    sns = {j["part"]["sn"] for j in jobs}
+    assert sns == {"802C0F24444BC656AC", "802C0F24444BC654AE"}
+
+    # Motherboard + NIC had no fault-description block of their own, so
+    # both leftover rows land on the last job as extra_parts — not
+    # swallowed into job 2's own (RAM) primary block.
+    assert len(jobs[-1]["extra_parts"]) == 2
+    extra_pns = {ep["old_pn"] for ep in jobs[-1]["extra_parts"]}
+    assert extra_pns == {"YZMB-02666-106", "V0220A90000004ZY"}
+
+
+def test_multi_unit_row_report_never_mixes_ram_and_motherboard_fields():
+    jobs = parse_multi_ticket(RAM_X2_TICKET, RAM_X2_TICKET_NUMBER)
+    rows = parse_dispatch_table(DISPATCH_TABLE_RAM_X2_PLUS_MB_NIC)
+    merge_dispatch(jobs, rows)
+    drafts = [default_draft(j) for j in jobs]
+    report = build_combined_report(drafts)
+
+    # Both RAM blocks titled RAM, with RAM's own PN — never "Old Motherboard"
+    # wearing a RAM model/SN/MPN, which was the reported bug.
+    assert report.count("Old RAM") == 2
+    assert report.count("New RAM") == 2
+    assert "Old Motherboard" in report  # from extra_parts, correctly separate
+    assert "Old NIC" in report
+
+    # The Motherboard block (from extra_parts) must carry ONLY the
+    # motherboard PN — no RAM model/MPN/SN leaking into it.
+    mb_idx = report.index("Old Motherboard")
+    mb_block = report[mb_idx:mb_idx + 200]
+    assert "MTC40F2046S1RC56BD1" not in mb_block  # RAM's MPN
+    assert "Micron 64GB" not in mb_block           # RAM's model
+    assert "YZMB-02666-106" in mb_block
 
 
 if __name__ == "__main__":

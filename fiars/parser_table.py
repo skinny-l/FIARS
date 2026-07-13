@@ -82,6 +82,18 @@ def parse_dispatch_table(raw: str) -> list[dict[str, Any]]:
     return rows
 
 
+_MULTI_UNIT_RE = re.compile(r"[x×]\s*(\d+)\s*$", re.IGNORECASE)
+
+
+def _unit_count(faulty_part: str) -> int:
+    """`"Memory x2"` -> 2. `"Memory"` -> 1. Rows tagged with a unit count
+    describe N identical physical parts collapsed into a single dispatch
+    row (same PN for all of them) — so the row should match N same-category
+    fault blocks instead of being exhausted after the first."""
+    m = _MULTI_UNIT_RE.search((faulty_part or "").strip())
+    return int(m.group(1)) if m else 1
+
+
 def merge_dispatch(jobs: list[dict[str, Any]], rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
     """
     Match dispatch rows onto parsed jobs (in place) by Server SN, then
@@ -98,6 +110,18 @@ def merge_dispatch(jobs: list[dict[str, Any]], rows: list[dict[str, Any]]) -> li
     stays whatever was passed in manually; old_pn/new_pn stay blank) so
     nothing breaks when the table and the raw paste don't line up — the
     engineer fills the gap by hand as before.
+
+    A row like "Memory x2" describes 2 identical physical parts (e.g. two
+    DIMMs, same PN) collapsed into one row — when a ticket has two separate
+    fault blocks for that category (two RAM jobs), both should match this
+    same row rather than the row being exhausted after the first job,
+    which would otherwise leave the second job with no same-category match
+    and at risk of wrongly matching a different part's row instead.
+
+    Matching NEVER crosses into a different category as a fallback: a job
+    with no same-category dispatch row left is left unmatched (blank PN)
+    rather than silently attached to another part's PN — a visibly blank
+    field the engineer fills in beats a wrong PN that looks correct.
     """
     by_sn: dict[str, list[dict[str, Any]]] = {}
     for row in rows:
@@ -114,16 +138,22 @@ def merge_dispatch(jobs: list[dict[str, Any]], rows: list[dict[str, Any]]) -> li
         if sn:
             jobs_by_sn.setdefault(sn, []).append(job)
 
+    # Remaining match-count per row (by id) — multi-unit rows ("x2") can
+    # match more than once before being considered exhausted.
+    remaining: dict[int, int] = {id(r): _unit_count(r.get("faulty_part", "")) for r in rows}
+
     for job in jobs:
-        candidates = by_sn.get(job.get("server_sn", ""), [])
-        if not candidates:
+        candidates = [r for r in by_sn.get(job.get("server_sn", ""), []) if remaining[id(r)] > 0]
+        same_cat = [r for r in candidates if r.get("category") == job.get("category")]
+        if not same_cat:
+            # No same-category row left — do NOT fall back to a different
+            # category (that's how a RAM job can end up wearing a
+            # Motherboard PN). Leave unmatched; engineer fills by hand.
             job["dispatch_matched"] = False
             continue
 
-        # Prefer same-category match; fall back to next unconsumed row.
-        same_cat = [r for r in candidates if r.get("category") == job.get("category")]
-        match = same_cat[0] if same_cat else candidates[0]
-        candidates.remove(match)
+        match = same_cat[0]
+        remaining[id(match)] -= 1
 
         job["ticket_number"] = match.get("ticket_no", job.get("ticket_number", ""))
         job["server_model_code"] = " ".join(
@@ -141,25 +171,28 @@ def merge_dispatch(jobs: list[dict[str, Any]], rows: list[dict[str, Any]]) -> li
             job["part"]["dispatch_label"] = match["faulty_part"]
         job["dispatch_matched"] = True
 
-    # Second pass: any dispatch rows still unconsumed for a server SN belong
-    # to a part not covered by its own fault-description block (e.g. RAM
-    # swapped alongside a motherboard, with only the motherboard block
-    # present in the raw paste). Attach them to the last job for that SN as
-    # extra_parts so build_report can render an additional Old/New block.
-    for sn, candidates in by_sn.items():
-        if not candidates:
+    # Second pass: any dispatch rows still unconsumed (remaining > 0) for a
+    # server SN belong to a part not covered by its own fault-description
+    # block (e.g. a motherboard swap dispatched alongside RAM, with only
+    # the RAM block present in the raw paste). Attach them to the last job
+    # for that SN as extra_parts so build_report can render an additional
+    # Old/New block, instead of being dropped.
+    for sn, sn_rows in by_sn.items():
+        leftover = [r for r in sn_rows if remaining[id(r)] > 0]
+        if not leftover:
             continue
         sn_jobs = jobs_by_sn.get(sn, [])
         if not sn_jobs:
             continue
         target = sn_jobs[-1]
         target.setdefault("extra_parts", [])
-        for row in candidates:
-            target["extra_parts"].append({
-                "type":   row.get("faulty_part", ""),
-                "old_pn": row.get("old_pn", ""),
-                "new_pn": row.get("new_pn", ""),
-            })
+        for row in leftover:
+            for _ in range(remaining[id(row)]):
+                target["extra_parts"].append({
+                    "type":   row.get("faulty_part", ""),
+                    "old_pn": row.get("old_pn", ""),
+                    "new_pn": row.get("new_pn", ""),
+                })
 
     return jobs
 

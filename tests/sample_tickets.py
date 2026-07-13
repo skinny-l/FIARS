@@ -220,3 +220,104 @@ run FD and collect logs update in sheet first
 A
 NF5468M6
 Hafidz"""
+
+# Real-world bug case: TWO separate 工单标签/tags fault blocks, both
+# physically RAM (two DIMMs, two slots), same ticket/server SN — but the
+# dispatch table collapses both into a single "Memory x2" row (one PN for
+# both units) alongside separate Motherboard and NIC rows for parts that
+# have no fault-description block of their own. Regression for a bug where
+# the second RAM block, finding no same-category row left (the "x2" row
+# had been treated as exhausted after the first match), fell back to the
+# Motherboard row — mixing RAM's own Model/SN/MPN with Motherboard's PN
+# under an incorrectly-titled "Old Motherboard" block.
+RAM_X2_BLOCK_1 = """工单标签/tags：
+60天内重复报修次数/fault_60day_rt：0
+主机业务属性/idc_kind：核心机房
+Priority：normal
+server_model：S520-B3 server_product：QC6468D7-SG
+服务器SN/Server SN：21D720120
+机柜位置/Location：MYJHBGDS_F2_DHGA-A-21
+起始U位/ unit_no: 17
+服务器厂商/manufacturer:Inspur
+部件位置/part_position:P1_C3_D0
+部件厂商/part_manufacturer:Micron
+部件SN/part_sn:802C0F24444BC656AC
+部件容量/part_size:64GB
+部件类型/part_type:RAM
+部件PN/part_pn:MTC40F2046S1RC56BD1
+fault_log_dir:None
+故障明细/Fault_Detail:Memory CE
+故障类型/fault_type:Memory
+故障描述/Fault Description:Memory CE (Count) > Max (Kernel)
+30天内重复报修次数/fault_30day_rt：0
+"""
+
+RAM_X2_BLOCK_2 = """工单标签/tags：
+60天内重复报修次数/fault_60day_rt：0
+主机业务属性/idc_kind：核心机房
+Priority：normal
+server_model：S520-B3 server_product：QC6468D7-SG
+服务器SN/Server SN：21D720120
+机柜位置/Location：MYJHBGDS_F2_DHGA-A-21
+起始U位/ unit_no: 17
+服务器厂商/manufacturer:Inspur
+部件位置/part_position:P1_C5_D0
+部件厂商/part_manufacturer:Micron
+部件SN/part_sn:802C0F24444BC654AE
+部件容量/part_size:64GB
+部件类型/part_type:RAM
+部件PN/part_pn:MTC40F2046S1RC56BD1
+fault_log_dir:None
+故障明细/Fault_Detail:Memory CE
+故障类型/fault_type:Memory
+故障描述/Fault Description:Memory CE (Count) > Max (Kernel)
+30天内重复报修次数/fault_30day_rt：0
+"""
+
+RAM_X2_TICKET = RAM_X2_BLOCK_1 + RAM_X2_BLOCK_2
+RAM_X2_TICKET_NUMBER = "SHGD0002034569"
+
+DISPATCH_TABLE_RAM_X2_PLUS_MB_NIC = """Date
+Ticket No#
+Case ID#
+Server SN
+Rack Info
+Faulty Part
+OLD PN
+NEW PN
+Maker
+Model
+Engineer
+13/7/2026
+SHGD0002034569
+SHSJ0004174583
+21D720120
+MYJHBGDS_F2_DHGA-A-21-17
+Memory x2
+V0040J30000000ZY
+V0040J30000000ZY
+Q
+QC6468D7-SG
+Aziz | Isq Deliver onsite
+13/7/2026
+SHGD0002034569
+SHSJ0004174583
+21D720120
+MYJHBGDS_F2_DHGA-A-21-17
+Motherboard - high risk have bent pins
+YZMB-02666-106
+YZMB-02666-106 borrow
+Q
+QC6468D7-SG
+Aziz | Isq Deliver onsite
+13/7/2026
+SHGD0002034569
+SHSJ0004174583
+21D720120
+MYJHBGDS_F2_DHGA-A-21-17
+NIC
+V0220A90000004ZY
+V0220A90000004ZY
+Q
+QC6468D7-SG
+Aziz | Isq Deliver onsite"""
