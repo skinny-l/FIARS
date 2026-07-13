@@ -64,10 +64,14 @@ def _canon_key(key: str) -> str:
     return key.strip().lower()
 
 
-# fault_type / part_type -> coarse category used by the similarity engine
-_CATEGORY_KEYWORDS = {
+# fault_type / part_type -> coarse category used by the similarity engine.
+# Keywords are split into "strong" (specific enough to one category that
+# they should win outright) and "weak" (genuinely ambiguous across
+# categories — e.g. "ecc"/"edac" errors happen on RAM DIMMs AND on GPU
+# on-die memory, so they shouldn't unilaterally decide the category).
+_CATEGORY_KEYWORDS_STRONG = {
     "Storage": ["disk", "hdd", "ssd", "drive", "raid", "sas", "sata", "nvme"],
-    "Memory":  ["memory", "dimm", "ram", "ecc", "edac"],
+    "Memory":  ["memory", "dimm"],
     "CPU":     ["cpu", "processor", "socket"],
     "Power":   ["power", "psu", "supply"],
     "GPU":     ["gpu", "cuda", "nvidia", "xid", "vbios"],
@@ -75,21 +79,38 @@ _CATEGORY_KEYWORDS = {
     "Thermal": ["fan", "temp", "thermal", "overheat", "heat"],
     "Board":   ["board", "motherboard", "system board", "backplane"],
 }
+_CATEGORY_KEYWORDS_WEAK = {
+    "Memory": ["ram", "ecc", "edac"],
+}
+
+
+def _compile(keyword_map: dict[str, list[str]]) -> dict[str, re.Pattern]:
+    return {
+        cat: re.compile(r"\b(?:" + "|".join(re.escape(k) for k in kws) + r")\b")
+        for cat, kws in keyword_map.items()
+    }
+
 
 # Word-boundary matchers per category, built once. Short/ambiguous keywords
 # (e.g. "ram", "port") must not match as a bare substring inside unrelated
 # words — e.g. "ram" inside "DRAM"/"VRAM" (GPU on-die memory, not a DIMM) or
 # "program"; "port" inside "important". \b works fine here since keywords
 # are plain alphanumerics.
-_CATEGORY_PATTERNS = {
-    cat: re.compile(r"\b(?:" + "|".join(re.escape(k) for k in kws) + r")\b")
-    for cat, kws in _CATEGORY_KEYWORDS.items()
-}
+_CATEGORY_PATTERNS_STRONG = _compile(_CATEGORY_KEYWORDS_STRONG)
+_CATEGORY_PATTERNS_WEAK = _compile(_CATEGORY_KEYWORDS_WEAK)
 
 
 def infer_category(*texts: str) -> str:
     blob = " ".join(t for t in texts if t).lower()
-    for cat, pattern in _CATEGORY_PATTERNS.items():
+    # All strong (unambiguous) signals are checked first, across every
+    # category, before any weak/ambiguous keyword is allowed to decide —
+    # so e.g. a GPU fault mentioning "Xid" and "ECC" in the same text
+    # correctly stays GPU instead of "ecc" (shared with Memory) winning
+    # just because Memory happened to be checked first.
+    for cat, pattern in _CATEGORY_PATTERNS_STRONG.items():
+        if pattern.search(blob):
+            return cat
+    for cat, pattern in _CATEGORY_PATTERNS_WEAK.items():
         if pattern.search(blob):
             return cat
     return "Other"
