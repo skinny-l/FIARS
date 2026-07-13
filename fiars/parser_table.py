@@ -82,7 +82,14 @@ def parse_dispatch_table(raw: str) -> list[dict[str, Any]]:
     return rows
 
 
-_MULTI_UNIT_RE = re.compile(r"[x×]\s*(\d+)\s*$", re.IGNORECASE)
+# Matches a trailing unit-count marker like " x2" or " ×3" — requires a
+# word boundary before the x/× so it never matches inside an unrelated
+# alphanumeric token (e.g. the "X" in "SPEX2026071100090", a ticket/case
+# code). Capped at 1-2 digits: no real dispatch row describes more than
+# ~99 identical units, so a longer digit run is never a genuine count —
+# treating it as one caused a hang (attempting a multi-trillion-iteration
+# loop when "X2026071100090" was misread as unit count 2026071100090).
+_MULTI_UNIT_RE = re.compile(r"(?<![A-Za-z0-9])[x×]\s*(\d{1,2})\s*$", re.IGNORECASE)
 
 
 def _unit_count(faulty_part: str) -> int:

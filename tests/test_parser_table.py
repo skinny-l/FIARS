@@ -222,10 +222,13 @@ def test_two_tags_blocks_same_ticket_combine_into_one_report():
     assert report.count("Location:") == 1
     assert "Ticket Number: SHGD0002034312" in report
 
-    # Both blocks' own Details lines preserved, each with its own slot
-    assert report.count("Details:") == 2
-    assert "slot 37:00" in report
-    assert "slot 0000:37:00.0" in report
+    # Slot lives on the block title now, not a repeated "Details: Replaced
+    # X (slot Y). Issue resolved." sentence per block. Both blocks here
+    # still have auto-generated placeholder Details (no engineer edit), so
+    # no Details: line should appear at all.
+    assert "Details:" not in report
+    assert "(slot 37:00)" in report
+    assert "(slot 0000:37:00.0)" in report
 
     # Both blocks' part data present
     assert "0000:37:00.0 SN: 1323622028016" in report          # block 1, from dispatch
@@ -307,6 +310,84 @@ def test_multi_unit_row_report_never_mixes_ram_and_motherboard_fields():
     assert "MTC40F2046S1RC56BD1" not in mb_block  # RAM's MPN
     assert "Micron 64GB" not in mb_block           # RAM's model
     assert "YZMB-02666-106" in mb_block
+
+
+def test_unit_count_never_matches_inside_unrelated_tokens():
+    # Regression: "GPU A100 PCIE - SPEX2026071100090" was misread as a
+    # unit-count marker ("x2026071100090" — the X in SPEX + the digits
+    # after it), which made merge_dispatch attempt a multi-trillion
+    # iteration loop and hang the whole process. A "X" immediately
+    # followed by digits must NOT count as "xN" unless it's a genuine
+    # standalone marker (word boundary before it, at most 2 digits).
+    from fiars.parser_table import _unit_count
+    assert _unit_count("GPU A100 PCIE - SPEX2026071100090") == 1
+    assert _unit_count("GPU H100 - SPEX2026071100080") == 1
+    assert _unit_count("Memory x2") == 2
+    assert _unit_count("Memory x10") == 10
+    assert _unit_count("Memory X3") == 3
+    assert _unit_count("Motherboard - high risk have bent pins") == 1
+
+
+def test_gpu_spex_dispatch_rows_do_not_hang_merge_dispatch():
+    # End-to-end regression for the SPEX-code hang: two GPU fault blocks
+    # (real Xid ECC report, same ticket) matched against a single-row
+    # dispatch table whose Faulty Part text contains a SPEX code. Must
+    # complete (and correctly categorize both blocks as GPU) instead of
+    # hanging on a runaway range() loop.
+    jobs = parse_multi_ticket(GPU_TWO_BLOCK_TICKET, GPU_TICKET_NUMBER)
+    rows = parse_dispatch_table(DISPATCH_ROW_GPU_SINGLE)
+    merge_dispatch(jobs, rows)  # must return promptly, not hang
+    assert jobs[0]["category"] == "GPU"
+    assert jobs[1]["category"] == "GPU"
+    drafts = [default_draft(j) for j in jobs]
+    report = build_combined_report(drafts)
+    assert report.count("Old GPU") == 2
+    assert "(slot 37:00)" in report
+    assert "(slot 0000:37:00.0)" in report
+
+
+def test_infer_category_gpu_ecc_outranks_ambiguous_memory_keyword():
+    # Regression: a GPU fault whose text contains both "ECC" (ambiguous —
+    # shared with Memory/DIMM errors) and "Xid"/"GPU" (unambiguous GPU
+    # signals) must resolve to GPU, not Memory. Previously Memory's "ecc"
+    # keyword won just because Memory was checked before GPU.
+    text_desc = ("diff:371;NVRM: Xid (PCI:0000:37:00): 95, pid=5171, "
+                 "Uncontained: FBHUB. RST: Yes, D-RST: No")
+    text_detail = "xid 95 Uncontained ECC error occurred"
+    assert infer_category("GPU", "", text_desc, text_detail) == "GPU"
+
+    # A genuine DIMM ECC error with no GPU signal must still be Memory.
+    assert infer_category("Memory", "", "Memory CE (Count) > Max (Kernel)",
+                           "ECC error on DIMM P1_C1_D0") == "Memory"
+
+
+def test_slot_appears_on_block_title_not_details_sentence():
+    # New format: "Old RAM (slot X)" / "New RAM (slot X)" instead of a
+    # "Details: Replaced RAM (slot X). Issue resolved." sentence. When the
+    # engineer hasn't written a real Details line, no Details: line should
+    # appear at all — the slot alone on the title carries that information.
+    job = parse_ticket(HDD_TICKET, HDD_TICKET_NUMBER)
+    rows = parse_dispatch_table(DISPATCH_ROW_HDD)
+    merge_dispatch([job], rows)
+    draft = default_draft(job)
+    assert draft["slot"] == "22"
+    report = build_report(draft)
+    assert "(slot 22)" in report
+    assert "Old HDD (slot 22)" in report
+    assert "New HDD (slot 22)" in report
+    assert "Details:" not in report  # placeholder text, correctly suppressed
+
+
+def test_engineer_written_details_still_shown_without_slot_duplication():
+    job = parse_ticket(HDD_TICKET, HDD_TICKET_NUMBER)
+    rows = parse_dispatch_table(DISPATCH_ROW_HDD)
+    merge_dispatch([job], rows)
+    draft = default_draft(job)
+    draft["details"] = "Found bad sectors, replaced disk, rebuilt RAID. Issue resolved."
+    report = build_report(draft)
+    assert report.count("Details:") == 1
+    assert "Found bad sectors" in report
+    assert "Old HDD (slot 22)" in report  # slot still on title, not duplicated in Details
 
 
 if __name__ == "__main__":
