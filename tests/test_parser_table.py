@@ -223,10 +223,11 @@ def test_two_tags_blocks_same_ticket_combine_into_one_report():
     assert "Ticket Number: SHGD0002034312" in report
 
     # Slot lives on the block title now, not a repeated "Details: Replaced
-    # X (slot Y). Issue resolved." sentence per block. Both blocks here
-    # still have auto-generated placeholder Details (no engineer edit), so
-    # no Details: line should appear at all.
-    assert "Details:" not in report
+    # X (slot Y). Issue resolved." sentence per block. Details is a
+    # mandatory header field — shown exactly once for the whole combined
+    # ticket, blank here since neither draft was edited.
+    assert report.count("Details:") == 1
+    assert "\nDetails: \n" in report  # mandatory field, blank, no engineer edit
     assert "(slot 37:00)" in report
     assert "(slot 0000:37:00.0)" in report
 
@@ -361,21 +362,24 @@ def test_infer_category_gpu_ecc_outranks_ambiguous_memory_keyword():
                            "ECC error on DIMM P1_C1_D0") == "Memory"
 
 
-def test_slot_appears_on_block_title_not_details_sentence():
+def test_slot_appears_on_block_title_and_details_is_mandatory_blank():
     # New format: "Old RAM (slot X)" / "New RAM (slot X)" instead of a
-    # "Details: Replaced RAM (slot X). Issue resolved." sentence. When the
-    # engineer hasn't written a real Details line, no Details: line should
-    # appear at all — the slot alone on the title carries that information.
+    # "Details: Replaced RAM (slot X). Issue resolved." sentence. Details
+    # is a mandatory header field — always present exactly once, blank by
+    # default when the engineer hasn't written anything — the slot alone
+    # on the title carries the slot information.
     job = parse_ticket(HDD_TICKET, HDD_TICKET_NUMBER)
     rows = parse_dispatch_table(DISPATCH_ROW_HDD)
     merge_dispatch([job], rows)
     draft = default_draft(job)
     assert draft["slot"] == "22"
+    assert draft["details"] == ""
     report = build_report(draft)
     assert "(slot 22)" in report
     assert "Old HDD (slot 22)" in report
     assert "New HDD (slot 22)" in report
-    assert "Details:" not in report  # placeholder text, correctly suppressed
+    assert report.count("Details:") == 1
+    assert "\nDetails: \n" in report
 
 
 def test_engineer_written_details_still_shown_without_slot_duplication():

@@ -173,8 +173,13 @@ def parse_ticket(raw: str, ticket_number: str = "") -> dict[str, Any]:
     }
 
     # NVMe location logic: fault_part (e.g. "nvme8n2") is the physical
-    # identifier, not part_position (which is the PCIe address).
+    # identifier, not part_position (which is the PCIe address). The
+    # ticket's own part_type field can still say "HDD" even when the fault
+    # device is clearly an NVMe SSD (nvmeXnY naming) — the device name is
+    # the more reliable signal, so it overrides part_type in that case.
     fault_part = g("fault_part", "")
+    if re.match(r"nvme\d+n\d+", fault_part, re.IGNORECASE):
+        part["type"] = "SSD"
     if part["type"].upper() in ("NVME", "SSD") and fault_part:
         part["pcie_address"] = part["position"]  # keep PCIe addr for reference
         part["position"] = fault_part             # use device name as location

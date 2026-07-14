@@ -5,7 +5,10 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from fiars import db
 from fiars.parser import parse_ticket, search_text
 from fiars.report import build_report, default_draft
-from tests.sample_tickets import HDD_TICKET, HDD_TICKET_NUMBER
+from tests.sample_tickets import (
+    HDD_TICKET, HDD_TICKET_NUMBER,
+    NVME_LABELED_HDD_TICKET, NVME_LABELED_HDD_TICKET_NUMBER,
+)
 
 def test_parse_real_ticket():
     job = parse_ticket(HDD_TICKET, HDD_TICKET_NUMBER)
@@ -15,6 +18,21 @@ def test_parse_real_ticket():
     assert job["location_full"] == "MYJHBGDS_B4_DH1B-B-10-40"
     assert job["category"] == "Storage"
     assert job["part"]["pn"] == "ST20000NM007D"
+
+def test_nvme_device_name_overrides_hdd_part_type():
+    # Regression: the ticket's own 部件类型/part_type field said "HDD", but
+    # the actual fault device (故障设备/fault_part) is "nvme0n1" — a real
+    # NVMe SSD, not a spinning HDD. The device name must win: part type
+    # becomes SSD, and the report titles it "Old SSD (slot nvme0n1)", not
+    # "Old HDD (slot nvme0n1)".
+    job = parse_ticket(NVME_LABELED_HDD_TICKET, NVME_LABELED_HDD_TICKET_NUMBER)
+    assert job["part"]["type"] == "SSD"
+    assert job["part"]["position"] == "nvme0n1"
+    draft = default_draft(job)
+    report = build_report(draft)
+    assert "Old SSD (slot nvme0n1)" in report
+    assert "New SSD (slot nvme0n1)" in report
+    assert "HDD" not in report
 
 def test_search_text_excludes_answer():
     job = parse_ticket(HDD_TICKET, HDD_TICKET_NUMBER)

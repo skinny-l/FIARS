@@ -66,14 +66,12 @@ def default_draft(job: dict[str, Any]) -> dict[str, Any]:
     else:
         block_kind = "Part"
 
-    # Slot/position now lives on the block title ("Old RAM (slot X)"),
-    # not folded into the Details sentence — keeps Details free for the
-    # engineer's actual diagnostic narrative instead of a repeated
-    # boilerplate line per part. Built from block_kind (not the raw
-    # part_type) so it matches the placeholder text build_report/
-    # build_combined_report compare against to decide whether to show
-    # this line at all.
-    details = f"Replaced {block_kind}. Issue resolved."
+    # Details is now a mandatory header field (Date/Ticket Number/Server
+    # SN/Location/Details), always shown even when blank — the engineer
+    # fills it with the real diagnostic narrative (there's no useful
+    # auto-generated placeholder now that slot lives on the block title,
+    # so it starts empty rather than "Replaced X. Issue resolved.").
+    details = ""
 
     # Extra parts (e.g. RAM swapped alongside the motherboard) come from
     # unconsumed dispatch-table rows on the same ticket/server SN — see
@@ -130,34 +128,25 @@ def build_report(draft: dict[str, Any]) -> str:
     """
     Render the final report text from a (possibly engineer-edited) draft.
 
-    A single header (Date/Ticket Number/Server SN/Location) is followed by
-    a Details line (only if the engineer has written something beyond the
-    auto-generated placeholder — see below), then one Old/New block per
-    part. The slot/position, if known, is shown on the block title itself
-    ("Old RAM (slot P1_C3_D0)") rather than repeated inside a Details
-    sentence for every part. Most tickets have just the primary part;
-    tickets that touched more than one part (e.g. a motherboard swap that
-    also required a RAM swap) get one extra Old/New block per additional
-    part via draft["extra_parts"] — same ticket, same header, no
-    duplicated report.
+    Header is Date / Ticket Number / Server SN / Location / Details — all
+    five always shown, Details included even when blank, since it's where
+    the engineer writes the real diagnostic narrative (the specific slot a
+    part came from lives on that part's own Old/New block title instead,
+    e.g. "Old RAM (slot P1_C3_D0)", not repeated in Details). Most tickets
+    have just the primary part; tickets that touched more than one part
+    (e.g. a motherboard swap that also required a RAM swap) get one extra
+    Old/New block per additional part via draft["extra_parts"] — same
+    ticket, same header, no duplicated report.
     """
     kind = draft.get("part_kind", "Part") or "Part"
     slot = draft.get("slot", "")
-    details = draft.get("details", "")
-    placeholder = f"Replaced {kind}. Issue resolved."
 
     lines = [
         f"Date: {draft.get('date','')}",
         f"Ticket Number: {draft.get('ticket_number','')}",
         f"Server SN: {draft.get('server_sn','')}",
         f"Location: {draft.get('location','')}",
-    ]
-    # Skip the Details line entirely when it's still the untouched
-    # auto-generated placeholder — the slot now lives on the title, so
-    # there's nothing left in the placeholder worth printing.
-    if details and details != placeholder:
-        lines.append(f"Details: {details}")
-    lines += [
+        f"Details: {draft.get('details','')}",
         "",
         _part_block(f"Old {_titled(kind, slot)}", draft.get("old", {})),
         "",
@@ -183,21 +172,15 @@ def _base_ticket(ticket_number: str) -> str:
     return (ticket_number or "").split("#")[0]
 
 
-def _segment(kind: str, slot: str, details: str, old: dict[str, str], new: dict[str, str],
-             show_details: bool) -> list[str]:
-    """One optional Details line + Old/New pair, as used inside
-    build_combined_report. Slot is shown on the block title, not in
-    Details. Only the first block of a combined ticket carries a Details
-    line at all (show_details=False for every block after the first) —
-    later blocks go straight to their Old/New pair."""
-    lines: list[str] = []
-    placeholder = f"Replaced {kind}. Issue resolved."
-    if show_details and details and details != placeholder:
-        lines += [f"Details: {details}", ""]
-    lines.append(_part_block(f"Old {_titled(kind, slot)}", old))
-    lines.append("")
-    lines.append(_part_block(f"New {_titled(kind, slot)}", new))
-    return lines
+def _segment(kind: str, slot: str, old: dict[str, str], new: dict[str, str]) -> list[str]:
+    """One Old/New pair, as used inside build_combined_report. Slot is
+    shown on the block title. Details is a header-level field now (see
+    build_combined_report), not repeated per part block."""
+    return [
+        _part_block(f"Old {_titled(kind, slot)}", old),
+        "",
+        _part_block(f"New {_titled(kind, slot)}", new),
+    ]
 
 
 def build_combined_report(drafts: list[dict[str, Any]]) -> str:
@@ -205,14 +188,12 @@ def build_combined_report(drafts: list[dict[str, Any]]) -> str:
     Combine multiple drafts that belong to the same ticket + server SN
     (e.g. two separate 工单标签/tags fault blocks logged under one ticket,
     such as two distinct Xid events on the same GPU) into a single note:
-    one shared header (Date/Ticket Number/Server SN/Location), one Old/New
-    segment per draft — each titled with its own slot ("Old RAM (slot
-    P1_C3_D0)") instead of repeating a "Replaced X (slot Y)" sentence per
-    block — and a single Remark at the end. Only the FIRST block in the
-    group carries a Details line (and only if it's more than the
-    auto-generated placeholder); later blocks go straight to their Old/New
-    pair, since the slot is already on the title and repeating "Issue
-    resolved" for every part adds nothing.
+    one shared header (Date/Ticket Number/Server SN/Location/Details —
+    Details always shown, taken from the first block's draft, since that's
+    normally where the engineer writes the narrative covering the whole
+    ticket) followed by one Old/New segment per draft — each titled with
+    its own slot ("Old RAM (slot P1_C3_D0)") — and a single Remark at the
+    end.
 
     Drafts are grouped by (base ticket number, server SN); only drafts
     within the same group are combined. Groups are emitted in the order
@@ -245,13 +226,13 @@ def build_combined_report(drafts: list[dict[str, Any]]) -> str:
             f"Ticket Number: {_base_ticket(head.get('ticket_number',''))}",
             f"Server SN: {head.get('server_sn','')}",
             f"Location: {head.get('location','')}",
+            f"Details: {head.get('details','')}",
             "",
         ]
         for i, d in enumerate(group):
             kind = d.get("part_kind", "Part") or "Part"
             slot = d.get("slot", "")
-            lines += _segment(kind, slot, d.get("details", ""), d.get("old", {}), d.get("new", {}),
-                               show_details=(i == 0))
+            lines += _segment(kind, slot, d.get("old", {}), d.get("new", {}))
             for ep in d.get("extra_parts", []):
                 ep_kind = ep.get("kind", "Part") or "Part"
                 lines += ["", _part_block(f"Old {ep_kind}", ep.get("old", {})),

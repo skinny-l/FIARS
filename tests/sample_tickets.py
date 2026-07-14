@@ -321,3 +321,34 @@ V0220A90000004ZY
 Q
 QC6468D7-SG
 Aziz | Isq Deliver onsite"""
+
+# Real-world case: part_type field says "HDD" but the fault device name
+# (fault_part) is a real NVMe device ("nvme0n1") — the device name is the
+# more reliable signal and should override the ticket's own part_type,
+# since these are physically SSDs, not spinning HDDs.
+NVME_LABELED_HDD_TICKET = """工单标签/tags：
+60天内重复报修次数/fault_60day_rt：0
+主机业务属性/idc_kind：核心机房
+Priority：normal
+server_model：S520-B3 server_product：SA5280LM6D
+服务器SN/Server SN：21B810012
+机柜位置/Location：MYJHBGDS_B1_DH3A-L-03
+起始U位/ unit_no: 9
+服务器厂商/manufacturer:Inspur
+部件位置/part_position:5
+背板号/backplane_number:0
+部件厂商/part_manufacturer:Samsung
+固件版本/firmware_version:
+部件SN/part_sn:S123456
+部件容量/part_size:1.92TB
+部件类型/part_type:HDD
+部件PN/part_pn:MZQL21T9HCJR
+fault_log_dir:None
+故障明细/Fault_Detail:Disk failure
+故障设备/fault_part：nvme0n1
+故障类型/fault_type:Disk
+故障描述/Fault Description:I/O error on nvme0n1
+30天内重复报修次数/fault_30day_rt：0
+"""
+
+NVME_LABELED_HDD_TICKET_NUMBER = "SHGD0002099999"
