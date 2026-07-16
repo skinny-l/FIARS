@@ -243,6 +243,23 @@ def test_two_tags_blocks_same_ticket_combine_into_one_report():
     assert report.count("Remark:") == 1
 
 
+def test_combined_report_has_single_quick_reference_line():
+    # The combined (multi-block, same ticket+server) report gets exactly
+    # ONE quick-reference first line, not one per block, taken from the
+    # first block's ticket number + location.
+    jobs = parse_multi_ticket(GPU_TWO_BLOCK_TICKET, GPU_TICKET_NUMBER)
+    rows = parse_dispatch_table(DISPATCH_ROW_GPU_SINGLE)
+    merge_dispatch(jobs, rows)
+    drafts = [default_draft(j) for j in jobs]
+    report = build_combined_report(drafts)
+
+    lines = report.split("\n")
+    assert lines[0].startswith("SHGD0002034312")
+    assert lines[0].count("SHGD0002034312") == 1
+    assert lines[1] == ""
+    assert lines[2] == f"Date: {drafts[0]['date']}"
+
+
 def test_combined_report_does_not_merge_different_tickets():
     # Different ticket numbers / server SNs must stay as separate reports
     # even when passed through build_combined_report together.

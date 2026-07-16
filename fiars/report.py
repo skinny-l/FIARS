@@ -108,6 +108,39 @@ def default_draft(job: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+def _short_location(location_full: str) -> str:
+    """Drop the leading site-code segment from a full location string.
+
+    `location_full` is `"{location}-{unit_no}"` (see parser.py), and
+    `location` itself starts with a site code (`MYJHBBDC02`, `MYJHBGDS`,
+    etc.) joined by underscore: `"MYJHBBDC02_B2_G4-G-06-41"` ->
+    `"B2_G4-G-06-41"`. Stripping it keeps the quick-reference header line
+    short enough to be useful (the site is implied — there's only ever
+    one you're on shift at), while the full `Location:` field further
+    down keeps the untouched original for the record.
+
+    No underscore (unexpected/partial location data) -> returned as-is.
+    """
+    location_full = (location_full or "").strip()
+    if "_" not in location_full:
+        return location_full
+    return location_full.split("_", 1)[1]
+
+
+def _quick_ref(ticket_number: str, location_full: str) -> str:
+    """`"SHGD0002038447", "MYJHBBDC02_B2_G4-G-06-41"` ->
+    `"SHGD0002038447_B2_G4-G-06-41"`. First line of every report: ticket
+    number + short location, so the block/rack/unit is visible without
+    hunting through the raw ticket dump or the Location: field below."""
+    ticket_number = _base_ticket(ticket_number)
+    short_loc = _short_location(location_full)
+    if not ticket_number:
+        return short_loc
+    if not short_loc:
+        return ticket_number
+    return f"{ticket_number}_{short_loc}"
+
+
 def _titled(kind: str, slot: str = "") -> str:
     """`"RAM", "P1_C3_D0"` -> `"RAM (slot P1_C3_D0)"`. No slot -> just kind."""
     return f"{kind} (slot {slot})" if slot else kind
@@ -142,6 +175,8 @@ def build_report(draft: dict[str, Any]) -> str:
     slot = draft.get("slot", "")
 
     lines = [
+        _quick_ref(draft.get("ticket_number", ""), draft.get("location", "")),
+        "",
         f"Date: {draft.get('date','')}",
         f"Ticket Number: {draft.get('ticket_number','')}",
         f"Server SN: {draft.get('server_sn','')}",
@@ -222,6 +257,8 @@ def build_combined_report(drafts: list[dict[str, Any]]) -> str:
 
         head = group[0]
         lines = [
+            _quick_ref(head.get("ticket_number", ""), head.get("location", "")),
+            "",
             f"Date: {head.get('date','')}",
             f"Ticket Number: {_base_ticket(head.get('ticket_number',''))}",
             f"Server SN: {head.get('server_sn','')}",

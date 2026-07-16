@@ -49,6 +49,32 @@ def test_report_format():
     assert "Ticket Number: SHGD0002014119" in r
     assert "Old HDD" in r and "New HDD" in r
 
+def test_report_starts_with_quick_reference_line():
+    # First line of every report is "{ticket}_{location minus site code}",
+    # e.g. "SHGD0002014119_B4_DH1B-B-10-40" — lets the engineer see which
+    # block/rack/unit to go to without hunting through the raw ticket dump
+    # or scrolling down to the Location: field. Site code (MYJHBGDS,
+    # MYJHBBDC02, ...) is dropped to keep the line short.
+    job = parse_ticket(HDD_TICKET, HDD_TICKET_NUMBER)
+    d = default_draft(job)
+    r = build_report(d)
+    lines = r.split("\n")
+    assert lines[0] == "SHGD0002014119_B4_DH1B-B-10-40"
+    assert lines[1] == ""  # blank line separates it from Date:
+    assert lines[2] == f"Date: {d['date']}"
+    # Full, untouched location is still present further down for the record
+    assert "Location: MYJHBGDS_B4_DH1B-B-10-40" in r
+
+
+def test_quick_reference_line_handles_missing_location_gracefully():
+    # No location data at all (e.g. a manually-built draft) -> quick-ref
+    # line falls back to just the ticket number, no stray underscore.
+    from fiars.report import build_report
+    d = default_draft({"ticket_number": "SHGD0002099999", "server_sn": "TESTSN"})
+    r = build_report(d)
+    assert r.split("\n")[0] == "SHGD0002099999"
+
+
 def test_date_format():
     d = default_draft(parse_ticket(HDD_TICKET, HDD_TICKET_NUMBER))
     parts = d["date"].split()
