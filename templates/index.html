@@ -199,6 +199,11 @@ th:hover{color:var(--ink)}
       <label>Dispatch table (optional — paste the shift assignment email to auto-fill Ticket No# and OLD/NEW PN)</label>
       <textarea id="pDispatch" rows="4" placeholder="Paste the dispatch/assignment table here (Date, Ticket No#, Case ID#, Server SN, Rack Info, Faulty Part, OLD PN, NEW PN, Maker, Model, Engineer)…"></textarea>
     </div>
+    <div class="card ticket-list-card hidden" id="ticketListCard" style="margin-top:14px;margin-bottom:0">
+      <h2>Tickets in this email <span id="ticketListCount" class="badge b-mt"></span>
+        <button class="gh sm" id="copyTickets" style="float:right">Copy list</button></h2>
+      <div id="ticketListBody" class="pre"></div>
+    </div>
     <div style="margin-top:18px"><button id="parseBtn">Parse &amp; diagnose</button></div>
   </div>
 
@@ -542,6 +547,42 @@ async function loadStats(){
   $('statBar').textContent=`Knowledge: ${s.knowledge} · Cases: ${s.cases} · KB patterns: ${s.kb_patterns} · Dumps: ${s.raw_dumps}`;
 }
 loadStats();
+
+// ══════ LIVE TICKET LIST (from pasted dispatch email, no parse needed) ═
+// Mirrors parser_table.py's row detection: header block starts at the
+// line reading "Date", each row after that starts on a date-like line
+// ("6/7/2026"), and column 2 of each row (right after Date) is Ticket
+// No# — column 3 (Case ID#) looks identical in shape so we can't just
+// regex-scan the whole blob for "4 letters + 10 digits" or Case IDs
+// would leak into the list.
+const _DATE_RE=/^\d{1,2}\/\d{1,2}\/\d{4}\b/;
+function extractTicketNumbers(raw){
+  const lines=raw.split('\n').map(l=>l.trim()).filter(Boolean);
+  const start=lines.findIndex(l=>l.toLowerCase()==='date');
+  if(start===-1)return[];
+  const body=lines.slice(start+11); // skip the 11 header cells
+  const rowStarts=[];
+  body.forEach((l,i)=>{if(_DATE_RE.test(l))rowStarts.push(i)});
+  const seen=new Set(),out=[];
+  rowStarts.forEach((s,idx)=>{
+    const ticket=body[s+1]; // Date, Ticket No#, ...
+    if(ticket&&!seen.has(ticket)){seen.add(ticket);out.push(ticket)}
+  });
+  return out;
+}
+function renderTicketList(){
+  const tickets=extractTicketNumbers($('pDispatch').value);
+  const card=$('ticketListCard');
+  if(!tickets.length){card.classList.add('hidden');return}
+  card.classList.remove('hidden');
+  $('ticketListCount').textContent=tickets.length;
+  $('ticketListBody').textContent=tickets.join('\n');
+}
+$('pDispatch').addEventListener('input',renderTicketList);
+$('copyTickets').onclick=()=>{
+  const tickets=extractTicketNumbers($('pDispatch').value);
+  navigator.clipboard.writeText(tickets.join('\n')).then(()=>toast('Ticket list copied')).catch(()=>toast('Failed',1));
+};
 
 // ══════ PARSE TICKET (MISSION BRIEFING) ═════════════════════════════════
 $('parseBtn').onclick=async()=>{
