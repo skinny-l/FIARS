@@ -143,38 +143,37 @@ th:hover{color:var(--ink)}
 .actions{display:flex;gap:5px;margin-top:6px}
 
 /* Checklist */
-.cl{width:100%;border-collapse:collapse;font-size:11.5px;table-layout:fixed}
-.cl th,.cl td{border:1px solid var(--ln);padding:6px 8px;vertical-align:top;word-wrap:break-word}
-.cl th{background:var(--p2);font-size:10.5px;text-transform:uppercase;letter-spacing:.3px;color:var(--mt);font-weight:650}
-.cl .num{text-align:center;font-weight:700;font-size:12px;color:var(--ac-2);width:26px}
-.cl .stage{width:78px;font-weight:600;color:var(--mt);font-size:11px}
-.cl .items{width:110px;font-size:11px;color:var(--mt)}
-.cl .std{font-size:11.5px;width:auto}
-.cl .ack{width:80px;text-align:left;white-space:nowrap}
-.cl .ack label{display:inline-flex;align-items:center;gap:3px;font-size:11px;margin-right:8px;cursor:pointer}
+.cl{width:100%;border-collapse:collapse;font-size:11px;table-layout:fixed}
+.cl th,.cl td{border:1px solid var(--ln);padding:3px 6px;vertical-align:top;word-wrap:break-word;line-height:1.35}
+.cl th{background:var(--p2);font-size:10px;text-transform:uppercase;letter-spacing:.3px;color:var(--mt);font-weight:650;padding:5px 6px}
+.cl .num{text-align:center;font-weight:700;font-size:11px;color:var(--ac-2)}
+.cl .stage{font-weight:600;color:var(--mt);font-size:11px}
+.cl .items{font-size:11px;color:var(--mt)}
+.cl .std{font-size:11px}
+.cl .ack{text-align:left;white-space:nowrap}
+.cl .ack label{display:inline-flex;align-items:center;gap:2px;font-size:11px;margin-right:6px;cursor:pointer}
 .cl .ack input[type=radio]{accent-color:var(--ac);margin:0;cursor:pointer}
-.cl .rem{width:100px}
-.cl .rem input{font-size:11px;padding:4px 6px;width:100%;box-sizing:border-box}
+.cl .rem input{font-size:11px;padding:2px 4px;width:100%;box-sizing:border-box;border:1px solid var(--ln);border-radius:3px;background:transparent;color:inherit}
 .cl-header{background:var(--p);padding:14px 16px;border:1px solid var(--ln);border-radius:var(--r-lg) var(--r-lg) 0 0;margin-bottom:0}
 .cl-header .r3{align-items:center}
 .cl-notes{font-size:10.5px;color:var(--mt);margin-top:8px;padding:10px 12px;border:1px solid var(--ln);border-radius:0 0 var(--r-lg) var(--r-lg)}
 .cl-notes li{margin-bottom:3px}
 .cl-sig{margin-top:14px;display:grid;grid-template-columns:1fr 1fr;gap:20px;font-size:12px}
 @media print{
-  @page{size:A4 portrait;margin:12mm}
+  @page{size:A4 portrait;margin:10mm}
   body{background:#fff!important;color:#000!important}
   header,.tabs,.pane:not(.print-target){display:none!important}
   .pane.print-target{display:block!important;padding:0;max-width:100%}
   .card{border:none;background:#fff;padding:0}
-  .cl{font-size:10px}
-  .cl th,.cl td{border-color:#999;padding:4px 6px}
+  .cl{font-size:9px}
+  .cl th,.cl td{border-color:#999;padding:2px 5px;line-height:1.25}
   .cl tr{page-break-inside:avoid}
-  .cl th{background:#e8e8e8;color:#333}
+  .cl th{background:#e8e8e8;color:#333;padding:4px 5px}
   .cl .num{color:#000} .cl .stage{color:#333} .cl .items{color:#333}
   .cl .ack input[type=radio]{accent-color:#000}
   .cl .rem input{border-color:#999;color:#000;background:transparent}
-  .cl-header{background:#f8f8f8;border-color:#999}
-  .cl-notes{color:#333;border-color:#999}
+  .cl-header{background:#f8f8f8;border-color:#999;padding:8px 10px}
+  .cl-notes{color:#333;border-color:#999;font-size:8.5px;padding:6px 8px}
   button,.gh{display:none!important}
 }
 </style></head><body>
@@ -403,6 +402,10 @@ th:hover{color:var(--ink)}
     </div>
 
     <table class="cl">
+      <colgroup>
+        <col style="width:4%"><col style="width:9%"><col style="width:13%">
+        <col style="width:48%"><col style="width:13%"><col style="width:13%">
+      </colgroup>
       <thead><tr><th>No.</th><th>Stage</th><th>Items</th><th>Check Standard</th><th>Acknowledge or not</th><th>Remarks</th></tr></thead>
       <tbody>
         <!-- BEFORE SERVICE -->
