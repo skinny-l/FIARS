@@ -136,7 +136,10 @@ _CATEGORY_LOGS = {
 def get_diagnostics(category: str) -> dict:
     """Return diagnostic commands, log paths, and collection steps for a fault category."""
     cat = category if category in COMMANDS else "System"
-    cmds = COMMANDS.get(cat, COMMANDS["System"])
+    cat_cmds = COMMANDS.get(cat, COMMANDS["System"])
+    cat_cmd_set = {c["cmd"] for c in cat_cmds}
+    common_cmds = [c for c in COMMON if c["cmd"] not in cat_cmd_set]
+    cmds = common_cmds + cat_cmds
     key_logs = _CATEGORY_LOGS.get(cat, ["sel_log", "dmesg", "error_report"])
     log_list = [{"name": k, "path": LOG_PATHS.get(k, "")} for k in key_logs if k in LOG_PATHS]
 

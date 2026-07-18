@@ -10,7 +10,6 @@ from __future__ import annotations
 import email
 import json
 import os
-from typing import Optional
 
 
 def extract_text(file_path: str) -> tuple[str, str]:
@@ -101,9 +100,3 @@ def _read_ocr(path: str) -> tuple[str, str]:
     return (text if text else "[OCR produced no text]", "ok" if text else "partial")
 
 
-SUPPORTED_NATIVE = {".txt", ".log", ".csv", ".tsv", ".md", ".json", ".eml", ".html", ".htm", ".ini", ".cfg"}
-SUPPORTED_OPTIONAL = {".pdf": "pymupdf", ".png": "pytesseract+Pillow",
-                      ".jpg": "pytesseract+Pillow", ".jpeg": "pytesseract+Pillow"}
-
-def supported_extensions() -> list[str]:
-    return sorted(SUPPORTED_NATIVE | set(SUPPORTED_OPTIONAL.keys()))
