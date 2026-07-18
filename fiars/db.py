@@ -12,7 +12,6 @@ from __future__ import annotations
 import json, os, re, sqlite3
 from fiars.smart_search import expand_synonyms
 from datetime import datetime, timezone
-from typing import Any
 
 SCHEMA = """
 -- Core knowledge base: error → solution reference
@@ -354,11 +353,6 @@ def get_raw_dump(path, dump_id):
     r = con.execute("SELECT * FROM raw_dumps WHERE id=?", (dump_id,)).fetchone()
     con.close()
     return dict(r) if r else None
-
-def update_raw_dump_status(path, dump_id, status):
-    con = connect(path)
-    con.execute("UPDATE raw_dumps SET status=? WHERE id=?", (status, dump_id))
-    con.commit(); con.close()
 
 def search_raw_dumps(path, query, limit=20):
     toks = [t for t in re.findall(r"[A-Za-z0-9_]+", query or "") if len(t) > 1]

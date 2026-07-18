@@ -1,7 +1,0 @@
-# Optional: the read-only analytics dashboard (Phase 5).
-# FIARS's Flask app runs fully without this — this is a separate process.
-#
-#   pip install -r requirements-dashboard.txt
-#   streamlit run dashboard/streamlit_app.py
-#
-streamlit>=1.30

@@ -230,7 +230,7 @@ def main():
     has = con.execute("SELECT 1 FROM knowledge WHERE error_code='CPU_IERR'").fetchone()
     con.close()
     if has:
-        print(f"Server Fault KB already loaded. Skipping.")
+        print("Server Fault KB already loaded. Skipping.")
         return
 
     for e in ENTRIES:
