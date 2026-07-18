@@ -143,37 +143,38 @@ th:hover{color:var(--ink)}
 .actions{display:flex;gap:5px;margin-top:6px}
 
 /* Checklist */
-.cl{width:100%;border-collapse:collapse;font-size:11.5px}
-.cl th,.cl td{border:1px solid var(--ln);padding:6px 8px;vertical-align:top}
+.cl{width:100%;border-collapse:collapse;font-size:11.5px;table-layout:fixed}
+.cl th,.cl td{border:1px solid var(--ln);padding:6px 8px;vertical-align:top;word-wrap:break-word}
 .cl th{background:var(--p2);font-size:10.5px;text-transform:uppercase;letter-spacing:.3px;color:var(--mt);font-weight:650}
-.cl .sec{background:var(--p2);font-weight:650;color:var(--ac-2);font-size:11.5px}
-.cl .num{text-align:center;font-weight:700;font-size:13px;color:var(--ac-2);width:30px}
-.cl .stage{width:80px;font-weight:600;color:var(--mt);font-size:11px;writing-mode:vertical-lr;text-align:center;letter-spacing:1px}
-.cl .items{width:90px;font-size:11px;color:var(--mt)}
-.cl .std{font-size:11.5px}
-.cl .ack{width:90px;text-align:left;white-space:nowrap}
+.cl .num{text-align:center;font-weight:700;font-size:12px;color:var(--ac-2);width:26px}
+.cl .stage{width:78px;font-weight:600;color:var(--mt);font-size:11px}
+.cl .items{width:110px;font-size:11px;color:var(--mt)}
+.cl .std{font-size:11.5px;width:auto}
+.cl .ack{width:80px;text-align:left;white-space:nowrap}
 .cl .ack label{display:inline-flex;align-items:center;gap:3px;font-size:11px;margin-right:8px;cursor:pointer}
 .cl .ack input[type=radio]{accent-color:var(--ac);margin:0;cursor:pointer}
-.cl .rem{width:110px}
-.cl .rem input{font-size:11px;padding:4px 6px}
+.cl .rem{width:100px}
+.cl .rem input{font-size:11px;padding:4px 6px;width:100%;box-sizing:border-box}
 .cl-header{background:var(--p);padding:14px 16px;border:1px solid var(--ln);border-radius:var(--r-lg) var(--r-lg) 0 0;margin-bottom:0}
-.cl-header .r2{align-items:center}
+.cl-header .r3{align-items:center}
 .cl-notes{font-size:10.5px;color:var(--mt);margin-top:8px;padding:10px 12px;border:1px solid var(--ln);border-radius:0 0 var(--r-lg) var(--r-lg)}
 .cl-notes li{margin-bottom:3px}
 .cl-sig{margin-top:14px;display:grid;grid-template-columns:1fr 1fr;gap:20px;font-size:12px}
 @media print{
+  @page{size:A4 portrait;margin:12mm}
   body{background:#fff!important;color:#000!important}
   header,.tabs,.pane:not(.print-target){display:none!important}
   .pane.print-target{display:block!important;padding:0;max-width:100%}
   .card{border:none;background:#fff;padding:0}
-  .cl th,.cl td{border-color:#999}
+  .cl{font-size:10px}
+  .cl th,.cl td{border-color:#999;padding:4px 6px}
+  .cl tr{page-break-inside:avoid}
   .cl th{background:#e8e8e8;color:#333}
-  .cl .sec{background:#f0f0f0;color:#000}
-  .cl .num{color:#000} .cl .stage{color:#555} .cl .items{color:#555}
+  .cl .num{color:#000} .cl .stage{color:#333} .cl .items{color:#333}
   .cl .ack input[type=radio]{accent-color:#000}
-  .cl .rem input{border-color:#999;color:#000}
+  .cl .rem input{border-color:#999;color:#000;background:transparent}
   .cl-header{background:#f8f8f8;border-color:#999}
-  .cl-notes{color:#555;border-color:#999}
+  .cl-notes{color:#333;border-color:#999}
   button,.gh{display:none!important}
 }
 </style></head><body>
@@ -394,9 +395,10 @@ th:hover{color:var(--ink)}
       <div><button class="gh sm" id="clAutoFill">Auto-fill from ticket</button> <button class="sm" id="clPrint">Print / Save PDF</button></div>
     </div>
     <div class="cl-header">
-      <div class="r2">
+      <div class="r3">
         <div><label>Ticket NO.</label><input id="clTicket" placeholder="e.g. SHGD0002014119"></div>
         <div><label>Client</label><input id="clClient" value="ByteDance"></div>
+        <div><label>Server SN</label><input id="clSN" placeholder="e.g. 7SP5N93"></div>
       </div>
     </div>
 
@@ -404,83 +406,95 @@ th:hover{color:var(--ink)}
       <thead><tr><th>No.</th><th>Stage</th><th>Items</th><th>Check Standard</th><th>Acknowledge or not</th><th>Remarks</th></tr></thead>
       <tbody>
         <!-- BEFORE SERVICE -->
-        <tr><td class="num" rowspan="3">1</td><td class="stage" rowspan="3">Before service</td>
+        <tr><td class="num">1</td><td class="stage">Before service</td>
             <td class="items">Ticket information</td>
             <td class="std">Study and understand the fault description and suggested onsite operation in portal before proceed with the maintanance activity</td>
             <td class="ack"><label><input type="radio" name="ck1" value="Yes"> Yes</label><label><input type="radio" name="ck1" value="No"> No</label></td>
             <td class="rem"><input data-rm="1"></td></tr>
-        <tr><td class="items">Device information</td>
+        <tr><td class="num"></td><td class="stage"></td><td class="items">Device information</td>
             <td class="std">Check that the server SN is consistent with the ticket</td>
             <td class="ack"><label><input type="radio" name="ck2" value="Yes"> Yes</label><label><input type="radio" name="ck2" value="No"> No</label></td>
             <td class="rem"><input data-rm="2"></td></tr>
-        <tr><td class="items">Marking information</td>
+        <tr><td class="num"></td><td class="stage"></td><td class="items">Marking information</td>
             <td class="std">Turn on UID to confirm server to be repaired；（Five elements of machine positioning: machine rack position, U position, SN, maintenance label, UID light）</td>
             <td class="ack"><label><input type="radio" name="ck3" value="Yes"> Yes</label><label><input type="radio" name="ck3" value="No"> No</label></td>
             <td class="rem"><input data-rm="3"></td></tr>
 
         <!-- DURING SERVICE -->
-        <tr><td class="num" rowspan="12">2</td><td class="stage" rowspan="12">During service</td>
-            <td class="items" rowspan="2">Shut down and restart</td>
+        <tr><td class="num">2</td><td class="stage">During service</td>
+            <td class="items">Shut down and restart</td>
             <td class="std">Double check the marks and SN before shutdown and restart after getting permission</td>
             <td class="ack"><label><input type="radio" name="ck4" value="Yes"> Yes</label><label><input type="radio" name="ck4" value="No"> No</label></td>
             <td class="rem"><input data-rm="4" data-auto="hotswap" data-val="Hot-swap, no shutdown"></td></tr>
-        <tr><td class="std">Take extra cautions on window ticket. If the server doesn't shutdown during the window maintanance time,please do not proceed with the repair acitivty and escalate inmediately.</td>
+        <tr><td class="num"></td><td class="stage"></td><td class="items"></td>
+            <td class="std">Take extra cautions on window ticket. If the server doesn't shutdown during the window maintanance time,please do not proceed with the repair acitivty and escalate inmediately.</td>
             <td class="ack"><label><input type="radio" name="ck5" value="Yes"> Yes</label><label><input type="radio" name="ck5" value="No"> No</label></td>
             <td class="rem"><input data-rm="5" data-auto="hotswap" data-val="Not applicable, hot-swap"></td></tr>
-        <tr><td class="items">Aware on surrounding and peripheral</td>
+        <tr><td class="num"></td><td class="stage"></td><td class="items">Aware on surrounding and peripheral</td>
             <td class="std">Take extra cautious on server status, rack status, railkit status and etc<br>When server have to be unmounted, be very careful in unmounting the server.</td>
             <td class="ack"><label><input type="radio" name="ck6" value="Yes"> Yes</label><label><input type="radio" name="ck6" value="No"> No</label></td>
             <td class="rem"><input data-rm="6"></td></tr>
-        <tr><td class="items" rowspan="4">Updating Firmware</td>
+        <tr><td class="num"></td><td class="stage"></td><td class="items">Updating Firmware</td>
             <td class="std">Record the firmware version and FRU before perform any activities, make sure these information are flashed accordingly after service.</td>
             <td class="ack"><label><input type="radio" name="ck7" value="Yes"> Yes</label><label><input type="radio" name="ck7" value="No"> No</label></td>
             <td class="rem"><input data-rm="7" data-auto="nofw" data-val="No FW activity"></td></tr>
-        <tr><td class="std">Confirm the device is general or customized, confirm the BIOS, BMC, FRU, SAS card, network card and other refresh requirements, then refresh as required</td>
+        <tr><td class="num"></td><td class="stage"></td><td class="items"></td>
+            <td class="std">Confirm the device is general or customized, confirm the BIOS, BMC, FRU, SAS card, network card and other refresh requirements, then refresh as required</td>
             <td class="ack"><label><input type="radio" name="ck8" value="Yes"> Yes</label><label><input type="radio" name="ck8" value="No"> No</label></td>
             <td class="rem"><input data-rm="8" data-auto="nofw" data-val="Not required"></td></tr>
-        <tr><td class="std">If server are power off during repair, collect necessary logs and keep for at least 3 months.</td>
+        <tr><td class="num"></td><td class="stage"></td><td class="items"></td>
+            <td class="std">If server are power off during repair, collect necessary logs and keep for at least 3 months.</td>
             <td class="ack"><label><input type="radio" name="ck9" value="Yes"> Yes</label><label><input type="radio" name="ck9" value="No"> No</label></td>
             <td class="rem"><input data-rm="9" data-auto="hotswap" data-val="No power off"></td></tr>
-        <tr><td class="std">Check the FW version and customized information , ensure they are consistent with requirements after firmware refresh</td>
+        <tr><td class="num"></td><td class="stage"></td><td class="items"></td>
+            <td class="std">Check the FW version and customized information , ensure they are consistent with requirements after firmware refresh</td>
             <td class="ack"><label><input type="radio" name="ck10" value="Yes"> Yes</label><label><input type="radio" name="ck10" value="No"> No</label></td>
             <td class="rem"><input data-rm="10" data-auto="nofw" data-val="Not required"></td></tr>
-        <tr><td class="items" rowspan="5">Replacement of spare parts</td>
+        <tr><td class="num"></td><td class="stage"></td><td class="items">Replacement of spare parts</td>
             <td class="std">Make sure the accurate fault slot information and SN（especially Bad Hard Disk SN) before replacing spare part, if onsite found unmatch error with error provided in ticket, escalate immediately.</td>
             <td class="ack"><label><input type="radio" name="ck11" value="Yes"> Yes</label><label><input type="radio" name="ck11" value="No"> No</label></td>
             <td class="rem"><input data-rm="11"></td></tr>
-        <tr><td class="std">Confirm the spare part is physically good and don’t have any external damage</td>
+        <tr><td class="num"></td><td class="stage"></td><td class="items"></td>
+            <td class="std">Confirm the spare part is physically good and don't have any external damage</td>
             <td class="ack"><label><input type="radio" name="ck12" value="Yes"> Yes</label><label><input type="radio" name="ck12" value="No"> No</label></td>
             <td class="rem"><input data-rm="12"></td></tr>
-        <tr><td class="std">Before replacing the spare parts, it is necessary to have the spare parts PN information and spare parts capacity verified by the service manager or the designated person, and for different PN spare parts, the compatibility needs to be confirmed before the replacement operation can be carried out.</td>
+        <tr><td class="num"></td><td class="stage"></td><td class="items"></td>
+            <td class="std">Before replacing the spare parts, it is necessary to have the spare parts PN information and spare parts capacity verified by the service manager or the designated person, and for different PN spare parts, the compatibility needs to be confirmed before the replacement operation can be carried out.</td>
             <td class="ack"><label><input type="radio" name="ck13" value="Yes"> Yes</label><label><input type="radio" name="ck13" value="No"> No</label></td>
             <td class="rem"><input data-rm="13"></td></tr>
-        <tr><td class="std">For non-multibrand spare parts, the good and bad parts must labelled with sticker.</td>
+        <tr><td class="num"></td><td class="stage"></td><td class="items"></td>
+            <td class="std">For non-multibrand spare parts, the good and bad parts must labelled with sticker.</td>
             <td class="ack"><label><input type="radio" name="ck14" value="Yes"> Yes</label><label><input type="radio" name="ck14" value="No"> No</label></td>
             <td class="rem"><input data-rm="14"></td></tr>
-        <tr><td class="std">All the parts are being dismantle and revert accordingly.</td>
+        <tr><td class="num"></td><td class="stage"></td><td class="items"></td>
+            <td class="std">All the parts are being dismantle and revert accordingly.</td>
             <td class="ack"><label><input type="radio" name="ck15" value="Yes"> Yes</label><label><input type="radio" name="ck15" value="No"> No</label></td>
             <td class="rem"><input data-rm="15"></td></tr>
 
         <!-- AFTER SERVICE -->
-        <tr><td class="num" rowspan="6">3</td><td class="stage" rowspan="6">After service</td>
-            <td class="items" rowspan="4">Maintenance checks</td>
+        <tr><td class="num">3</td><td class="stage">After service</td>
+            <td class="items">Maintenance checks</td>
             <td class="std">Confirm all the parts of the equipment are identified normally and the server indicator light is normal</td>
             <td class="ack"><label><input type="radio" name="ck16" value="Yes"> Yes</label><label><input type="radio" name="ck16" value="No"> No</label></td>
             <td class="rem"><input data-rm="16"></td></tr>
-        <tr><td class="std">Confirm that the external cables such as network cable and optical fiber are installed correctly and the network cable indicator is normal</td>
+        <tr><td class="num"></td><td class="stage"></td><td class="items"></td>
+            <td class="std">Confirm that the external cables such as network cable and optical fiber are installed correctly and the network cable indicator is normal</td>
             <td class="ack"><label><input type="radio" name="ck17" value="Yes"> Yes</label><label><input type="radio" name="ck17" value="No"> No</label></td>
             <td class="rem"><input data-rm="17"></td></tr>
-        <tr><td class="std">Confirm the specification configuration provided by customer is completed.</td>
+        <tr><td class="num"></td><td class="stage"></td><td class="items"></td>
+            <td class="std">Confirm the specification configuration provided by customer is completed.</td>
             <td class="ack"><label><input type="radio" name="ck18" value="Yes"> Yes</label><label><input type="radio" name="ck18" value="No"> No</label></td>
             <td class="rem"><input data-rm="18"></td></tr>
-        <tr><td class="std">Confirm that the server is mounted properly and securely. Make sure that the server is mounted to the rail kit. If there is no railkit, please escalate to the team.</td>
+        <tr><td class="num"></td><td class="stage"></td><td class="items"></td>
+            <td class="std">Confirm that the server is mounted properly and securely. Make sure that the server is mounted to the rail kit. If there is no railkit, please escalate to the team.</td>
             <td class="ack"><label><input type="radio" name="ck19" value="Yes"> Yes</label><label><input type="radio" name="ck19" value="No"> No</label></td>
             <td class="rem"><input data-rm="19"></td></tr>
-        <tr><td class="items" rowspan="2">Customer confirmation</td>
+        <tr><td class="num"></td><td class="stage"></td><td class="items">Customer confirmation</td>
             <td class="std">Confirm the customer feedback that the server is working normal and boot to OS normally</td>
             <td class="ack"><label><input type="radio" name="ck20" value="Yes"> Yes</label><label><input type="radio" name="ck20" value="No"> No</label></td>
             <td class="rem"><input data-rm="20"></td></tr>
-        <tr><td class="std">Confirm to return all non-returnable parts/access card to customer accordingly.</td>
+        <tr><td class="num"></td><td class="stage"></td><td class="items"></td>
+            <td class="std">Confirm to return all non-returnable parts/access card to customer accordingly.</td>
             <td class="ack"><label><input type="radio" name="ck21" value="Yes"> Yes</label><label><input type="radio" name="ck21" value="No"> No</label></td>
             <td class="rem"><input data-rm="21"></td></tr>
       </tbody>
@@ -942,24 +956,43 @@ async function toKB(id){
 // ══════ CHECKLIST ════════════════════════════════════════════════════════
 $('clDate').value=new Date().toLocaleDateString('en-GB',{day:'numeric',month:'long',year:'numeric'});
 
+// Per-category service profile — mirrors what the part actually requires
+// on-site, not a guess from the free-text part_type string. Category comes
+// from parser.py's infer_category() (Storage/Memory/CPU/Power/GPU/Network/
+// Thermal/Board — see _CATEGORY_KEYWORDS_STRONG/_WEAK), so this is reliable
+// even when the raw fault text phrases the part differently.
+//   hotSwap: true  -> no shutdown needed (items 4/5/9 -> No, reason noted)
+//   fw:      true  -> firmware/BIOS/BMC/FRU check applies (items 7/8/10 stay
+//                     for the engineer to confirm; false -> auto "No FW activity")
+const CL_PROFILE={
+  Storage: {hotSwap:true,  fw:false},  // HDD/SSD/NVMe
+  Power:   {hotSwap:true,  fw:false},  // PSU
+  Thermal: {hotSwap:true,  fw:false},  // Fan
+  Network: {hotSwap:false, fw:true},   // NIC — needs shutdown, has its own FW
+  Memory:  {hotSwap:false, fw:false},  // RAM/DIMM — needs shutdown, no FW
+  CPU:     {hotSwap:false, fw:true},   // needs shutdown, BIOS/microcode
+  Board:   {hotSwap:false, fw:true},   // Motherboard — needs shutdown, BIOS/BMC/FRU
+  GPU:     {hotSwap:false, fw:true},   // needs shutdown, VBIOS
+};
+
 $('clAutoFill').onclick=()=>{
   if(!S.job){toast('Parse a ticket first, then click Auto-fill',1);return}
   const j=S.job;
   $('clTicket').value=j.ticket_number||'';
+  $('clSN').value=j.server_sn||'';
   $('clSig').value=$('cEng').value||'';
   $('clDate').value=new Date().toLocaleDateString('en-GB',{day:'numeric',month:'long',year:'numeric'});
 
-  // Determine repair type
-  const ptype=((j.part||{}).type||'').toUpperCase();
-  const isHotSwap=['HDD','SSD','NVME','FAN','PSU'].includes(ptype);
-  const cat=(j.category||'').toLowerCase();
-  const needsFW=['bios','firmware','bmc'].includes(cat);
+  // Determine repair type from the parsed category (falls back to a
+  // shutdown-required, FW-relevant profile if category is unrecognised —
+  // the safer default on-site).
+  const prof=CL_PROFILE[j.category]||{hotSwap:false,fw:true};
 
   // Auto-fill conditional remarks
   document.querySelectorAll('[data-auto]').forEach(inp=>{
     const rule=inp.dataset.auto;
-    if(rule==='hotswap'&&isHotSwap) inp.value=inp.dataset.val;
-    else if(rule==='nofw'&&!needsFW) inp.value=inp.dataset.val;
+    if(rule==='hotswap'&&prof.hotSwap) inp.value=inp.dataset.val;
+    else if(rule==='nofw'&&!prof.fw) inp.value=inp.dataset.val;
     else inp.value='';
   });
 
@@ -968,8 +1001,8 @@ $('clAutoFill').onclick=()=>{
   // the reason in Remarks, matching how it's actually filled on paper.
   const setCk=(n,val)=>{const r=document.querySelector(`input[name="ck${n}"][value="${val}"]`);if(r)r.checked=true};
   for(let n=1;n<=3;n++) setCk(n,'Yes');           // Before-service items: always Yes
-  if(isHotSwap){setCk(4,'No');setCk(5,'No');setCk(9,'No')}
-  if(!needsFW){setCk(7,'No');setCk(8,'No');setCk(10,'No')}
+  if(prof.hotSwap){setCk(4,'No');setCk(5,'No');setCk(9,'No')}
+  if(!prof.fw){setCk(7,'No');setCk(8,'No');setCk(10,'No')}
 
   toast('Checklist auto-filled from parsed ticket');
 };
