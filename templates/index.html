@@ -169,22 +169,29 @@ th:hover{color:var(--ink)}
 .cl-sig .row span.lbl{font-weight:700;margin-right:6px;color:var(--ink)}
 .cl-sig .row span.line{display:inline-block;border-bottom:1px solid var(--ln);min-width:200px;padding-bottom:1px;color:var(--ink)}
 @media print{
-  @page{size:A4 landscape;margin:8mm 6mm}
+  @page{size:A4 landscape;margin:6mm 5mm}
   body{background:#fff!important;color:#000!important}
   header,.tabs,.pane:not(.print-target){display:none!important}
   .pane.print-target{display:block!important;padding:0;max-width:100%}
+  .pane.print-target>.card>div:first-child{display:none!important}
+  .toast{display:none!important}
   .card{border:none;background:#fff;padding:0}
   .cl-title{display:block;color:#000}
-  .cl{font-size:11px}
-  .cl th,.cl td{border-color:#000;padding:1px 4px;line-height:1.25}
+  .cl{font-size:9.5px}
+  .cl th,.cl td{border-color:#000;padding:0px 3px;line-height:1.05}
   .cl tr{page-break-inside:avoid}
-  .cl th{background:#fff;color:#000}
+  .cl th{background:#fff;color:#000;padding:1px 3px}
   .cl .num,.cl .stage,.cl .items,.cl .std{color:#000}
   .cl .ack input[type=checkbox]{accent-color:#000}
   .cl .rem input{border:none;color:#000;background:transparent}
   .cl-meta .lbl,.cl-meta .val,.cl-meta .status-lbl{color:#000}
   .cl-meta .val:empty::before{content:''}
-  .cl-notes{color:#000;border:1px solid #000;border-top:none}
+  .cl-notes{color:#000;border:1px solid #000;border-top:none;font-size:6.5px;padding:1px 4px;margin-top:0}
+  .cl-notes ol{margin:0 0 0 12px}
+  .cl-notes li{margin-bottom:0;line-height:1}
+  .cl-sig{margin-top:1px;font-size:8px;display:flex;gap:20px}
+  .cl-sig .row{margin-bottom:0}
+  .cl-sig .row span.line{min-width:100px}
   .cl-notes .hdr{color:#000}
   .cl-sig .row span.lbl,.cl-sig .row span.line{color:#000;border-color:#000}
   button,.gh{display:none!important}
