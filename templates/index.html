@@ -1114,25 +1114,28 @@ $('clAutoFill').onclick=()=>{
   // the safer default on-site).
   const prof=CL_PROFILE[j.category]||{hotSwap:false,fw:true};
 
-  // Auto-fill conditional remarks
+  // Auto-fill conditional remarks — only for the hot-swap template,
+  // since that's the only case where items 4/5/7/8/9/10 are set to No.
+  // Non-hot-swap parts get all-Yes with no remark needed.
   document.querySelectorAll('[data-auto]').forEach(inp=>{
-    const rule=inp.dataset.auto;
-    if(rule==='hotswap'&&prof.hotSwap) inp.value=inp.dataset.val;
-    else if(rule==='nofw'&&!prof.fw) inp.value=inp.dataset.val;
-    else inp.value='';
+    inp.value = prof.hotSwap ? inp.dataset.val : '';
   });
 
-  // Auto-set acknowledge for obvious items. The real form only has Yes/No
-  // (no third state) — a hot-swap/no-FW case still gets marked "No" with
-  // the reason in Remarks, matching how it's actually filled on paper.
+  // Two templates, selected purely by hotSwap:
+  //   Hot-swap (Storage/Power/Thermal): everything Yes except the
+  //     shutdown-related items (4/5/9), and the FW items (7/8/10) which
+  //     are also No since none of these three categories have firmware
+  //     to flash. Reasons auto-fill into Remarks via [data-auto] below.
+  //   Non-hot-swap (Memory/CPU/Board/GPU/Network/unrecognised): every
+  //     item is Yes — these parts need a shutdown and, apart from
+  //     Memory, a firmware check as part of the job either way.
   const setCk=(n,val)=>{
     document.querySelectorAll(`input[name="ck${n}"]`).forEach(r=>r.checked=false);
     const r=document.querySelector(`input[name="ck${n}"][value="${val}"]`);
     if(r)r.checked=true;
   };
-  for(let n=1;n<=3;n++) setCk(n,'Yes');           // Before-service items: always Yes
-  if(prof.hotSwap){setCk(4,'No');setCk(5,'No');setCk(9,'No')}
-  if(!prof.fw){setCk(7,'No');setCk(8,'No');setCk(10,'No')}
+  for(let n=1;n<=21;n++) setCk(n,'Yes');
+  if(prof.hotSwap){setCk(4,'No');setCk(5,'No');setCk(9,'No');setCk(7,'No');setCk(8,'No');setCk(10,'No')}
 
   toast('Checklist auto-filled from parsed ticket');
 };
@@ -1140,8 +1143,29 @@ $('clAutoFill').onclick=()=>{
 $('clPrint').onclick=()=>{
   // Add print-target class to checklist pane
   $('p-checklist').classList.add('print-target');
+
+  // Browsers suggest document.title as the default filename in the
+  // Print/Save-as-PDF dialog. Set it to "checklist DD-Mon-YYYY_TICKETNO"
+  // (matching the Date field format on the sheet) right before printing,
+  // then restore the real title after so the rest of the app is unaffected.
+  const origTitle=document.title;
+  const dateStr=$('clDate').textContent.trim();
+  let niceDate=dateStr;
+  // clDate is written as "19 July 2026" (Auto-fill/init use toLocaleDateString
+  // with month:'long'); convert to "19-Jul-2026" for the filename.
+  const m=dateStr.match(/^(\d{1,2})\s+([A-Za-z]+)\s+(\d{4})$/);
+  if(m){
+    const mon=m[2].slice(0,3);
+    niceDate=`${m[1]}-${mon}-${m[3]}`;
+  }
+  const ticket=($('clTicket').textContent.trim()||'unknown-ticket').replace(/[\\/:*?"<>|]/g,'-');
+  document.title=`checklist ${niceDate}_${ticket}`;
+
   window.print();
-  setTimeout(()=>$('p-checklist').classList.remove('print-target'),1000);
+  setTimeout(()=>{
+    $('p-checklist').classList.remove('print-target');
+    document.title=origTitle;
+  },1000);
 };
 
 // Init
