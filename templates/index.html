@@ -836,10 +836,16 @@ $('detailToggle').onclick=()=>{
 };
 
 $('copyReport').onclick=()=>{
-  const tn=(S.ticketNumbers||[]).join(' / ')||$('pTicket').value||'';
-  const desc=$('pRaw').value.trim();
+  // pReport's text is "quick_ref\n\nDate: ...\n...\nRemark: ...".
+  // OneNote wants: quick_ref, then the raw pasted ticket block, then
+  // that same Date:-onward body — so split off the quick_ref line and
+  // reinsert the raw block between it and the rest.
   const rpt=$('pReport').textContent;
-  const combined=[tn,desc,rpt].filter(Boolean).join('\n\n');
+  const nl=rpt.indexOf('\n');
+  const quickRef=nl===-1?rpt:rpt.slice(0,nl);
+  const rest=nl===-1?'':rpt.slice(nl).replace(/^\n+/,'');
+  const desc=$('pRaw').value.trim();
+  const combined=[quickRef,desc,rest].filter(Boolean).join('\n\n');
   navigator.clipboard.writeText(combined).then(()=>toast('Copied — ready for OneNote')).catch(()=>toast('Failed',1));
 };
 $('copyCmds').onclick=()=>{
