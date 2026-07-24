@@ -53,13 +53,16 @@ def parse_dispatch_table(raw: str) -> list[dict[str, Any]]:
     """
     lines = [ln.strip() for ln in raw.splitlines() if ln.strip()]
 
-    # Find the header block: first line that reads exactly "Date".
+    # Header block is optional: engineers sometimes paste just the data rows
+    # (no "Date / Ticket No# / ..." header) when copying a subset of a table.
+    # If a line reading exactly "Date" is found, skip past the full known
+    # header block as before. Otherwise assume the paste starts directly at
+    # row 1 (its first line should already look like a date).
     try:
         start = next(i for i, ln in enumerate(lines) if ln.lower() == "date")
+        body = lines[start + len(HEADERS):]
     except StopIteration:
-        return []
-
-    body = lines[start + len(HEADERS):]
+        body = lines
 
     # Each row starts where its Date cell looks like a date.
     row_starts = [i for i, ln in enumerate(body) if _DATE_RE.match(ln)]

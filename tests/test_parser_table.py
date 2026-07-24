@@ -411,6 +411,45 @@ def test_engineer_written_details_still_shown_without_slot_duplication():
     assert "Old HDD (slot 22)" in report  # slot still on title, not duplicated in Details
 
 
+def test_dispatch_table_parses_without_header_row():
+    # Engineer sometimes pastes just the data rows (a subset copied from a
+    # larger table) with no "Date / Ticket No# / ..." header line above
+    # them. Previously this returned zero rows silently (start-anchor
+    # search for a literal "Date" line found nothing, StopIteration ->
+    # `return []`). Same column order, header just absent.
+    headerless = """25/7/2026
+SHGD0009000011
+SHSJ0009100009
+21X100007
+TESTDC1_B1_DH3A-K-04-1
+Memory
+V0040C90000000ZY
+V0040C0000000000
+I
+SA5280LM6D
+Alex Deliver onsite
+25/7/2026
+SHGD0009000012
+SHSJ0009100010
+21X100008
+TESTDC1_B2_DH1A-J-04-51
+Memory
+V0040A70000000ZY
+V0040A0000000000
+I
+SA5280LM6D
+Alex Deliver onsite"""
+    rows = parse_dispatch_table(headerless)
+    assert len(rows) == 2
+    assert rows[0]["ticket_no"] == "SHGD0009000011"
+    assert rows[0]["server_sn"] == "21X100007"
+    assert rows[0]["faulty_part"] == "Memory"
+    assert rows[0]["old_pn"] == "V0040C90000000ZY"
+    assert rows[0]["new_pn"] == "V0040C0000000000"
+    assert rows[1]["ticket_no"] == "SHGD0009000012"
+    assert rows[1]["server_sn"] == "21X100008"
+
+
 if __name__ == "__main__":
     for name, fn in sorted(globals().items()):
         if name.startswith("test_") and callable(fn):
