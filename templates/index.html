@@ -699,9 +699,12 @@ loadStats();
 const _DATE_RE=/^\d{1,2}\/\d{1,2}\/\d{4}\b/;
 function extractTicketNumbers(raw){
   const lines=raw.split('\n').map(l=>l.trim()).filter(Boolean);
+  // Header block is optional: engineers sometimes paste just the data rows
+  // (no "Date / Ticket No# / ..." header) when copying a subset of a table.
+  // If a line reading exactly "Date" is found, skip past the 11 header
+  // cells as before. Otherwise assume the paste starts directly at row 1.
   const start=lines.findIndex(l=>l.toLowerCase()==='date');
-  if(start===-1)return[];
-  const body=lines.slice(start+11); // skip the 11 header cells
+  const body=start===-1 ? lines : lines.slice(start+11); // skip the 11 header cells
   const rowStarts=[];
   body.forEach((l,i)=>{if(_DATE_RE.test(l))rowStarts.push(i)});
   const seen=new Set(),out=[];
