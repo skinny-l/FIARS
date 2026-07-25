@@ -411,7 +411,7 @@ th:hover{color:var(--ink)}
   <div class="card">
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
       <h2 style="margin:0">Checklist for Engineer MA Service</h2>
-      <div><button class="gh sm" id="clAutoFill">Auto-fill from ticket</button> <button class="sm" id="clPrint">Print / Save PDF</button></div>
+      <div><button class="gh sm" id="clAutoFill">Auto-fill from ticket</button> <button class="sm" id="clDownload">Download PDF</button></div>
     </div>
 
     <div class="cl-title">Checklist for Engineer MA Service</div>
@@ -1151,83 +1151,59 @@ $('clAutoFill').onclick=()=>{
   toast('Checklist auto-filled from parsed ticket');
 };
 
-$('clPrint').onclick=()=>{
-  // Add print-target class to checklist pane
-  $('p-checklist').classList.add('print-target');
 
-  // Browsers suggest document.title as the default filename in the
-  // Print/Save-as-PDF dialog. Set it to "checklist DD-Mon-YYYY_TICKETNO"
-  // (matching the Date field format on the sheet) right before printing,
-  // then restore the real title after so the rest of the app is unaffected.
-  const origTitle=document.title;
-  const dateStr=$('clDate').textContent.trim();
-  let niceDate=dateStr;
-  // clDate is written as "19 July 2026" (Auto-fill/init use toLocaleDateString
-  // with month:'long'); convert to "19-Jul-2026" for the filename.
-  const m=dateStr.match(/^(\d{1,2})\s+([A-Za-z]+)\s+(\d{4})$/);
-  if(m){
-    const mon=m[2].slice(0,3);
-    niceDate=`${m[1]}-${mon}-${m[3]}`;
-  }
-  const ticket=($('clTicket').textContent.trim()||'unknown-ticket').replace(/[\\/:*?"<>|]/g,'-');
-  document.title=`checklist ${niceDate}_${ticket}`;
-
-  window.print();
-  setTimeout(()=>{
-    $('p-checklist').classList.remove('print-target');
-    document.title=origTitle;
-  },1000);
-};
 
 // ══════ CHECKLIST PDF (direct download, no print dialog) ═══════════════
-// Static table content mirrors the HTML checklist above. Duplicated here
-// rather than read from the DOM: jsPDF/autoTable builds a fresh PDF from
-// data, not a DOM snapshot, and this keeps the tuned @media print CSS
-// used by the Checklist tab's own Print button completely untouched.
+// Mirrors the HTML checklist table above: meta header row, stage-index
+// numbering (1/2/3 spanning the whole stage -- not a per-item 1-21),
+// dual Yes/No checkboxes drawn to match the real form, and the footer
+// notes+signature. Content is duplicated as static data here (rather
+// than read from the DOM) so the tuned @media print CSS the Checklist
+// tab's own Print button relies on stays completely untouched.
 const CL_ITEMS=[
-  {no:1,noSpan:3,stage:'Before service',items:'Ticket information',itemsSpan:1,
+  {id:1,stageNo:1,stageSpan:3,stage:'Before service',items:'Ticket information',itemsSpan:1,
     std:'Study and understand the fault description and suggested onsite operation in portal before proceed with the maintanance activity'},
-  {no:2,items:'Device information',itemsSpan:1,
+  {id:2,items:'Device information',itemsSpan:1,
     std:'Check that the server SN is consistent with the ticket'},
-  {no:3,items:'Marking information',itemsSpan:1,
+  {id:3,items:'Marking information',itemsSpan:1,
     std:'Turn on UID to confirm server to be repaired; (Five elements of machine positioning: machine rack position, U position, SN, maintenance label, UID light)'},
 
-  {no:4,noSpan:12,stage:'During service',items:'Shut down and restart',itemsSpan:2,
+  {id:4,stageNo:2,stageSpan:12,stage:'During service',items:'Shut down and restart',itemsSpan:2,
     std:'Double check the marks and SN before shutdown and restart after getting permission'},
-  {no:5,
+  {id:5,
     std:"Take extra cautions on window ticket. If the server doesn't shutdown during the window maintanance time,please do not proceed with the repair acitivty and escalate inmediately."},
-  {no:6,items:'Aware on surrounding and peripheral',itemsSpan:1,
+  {id:6,items:'Aware on surrounding and peripheral',itemsSpan:1,
     std:'Take extra cautious on server status, rack status, railkit status and etc. When server have to be unmounted, be very careful in unmounting the server.'},
-  {no:7,items:'Updating Firmware',itemsSpan:4,
+  {id:7,items:'Updating Firmware',itemsSpan:4,
     std:'Record the firmware version and FRU before perform any activities, make sure these information are flashed accordingly after service.'},
-  {no:8,
+  {id:8,
     std:'Confirm the device is general or customized, confirm the BIOS, BMC, FRU, SAS card, network card and other refresh requirements, then refresh as required'},
-  {no:9,
+  {id:9,
     std:'If server are power off during repair, collect necessary logs and keep for at least 3 months.'},
-  {no:10,
+  {id:10,
     std:'Check the FW version and customized information , ensure they are consistent with requirements after firmware refresh'},
-  {no:11,items:'Replacement of spare parts',itemsSpan:5,
+  {id:11,items:'Replacement of spare parts',itemsSpan:5,
     std:"Make sure the accurate fault slot information and SN (especially Bad Hard Disk SN) before replacing spare part, if onsite found unmatch error with error provided in ticket, escalate immediately."},
-  {no:12,
+  {id:12,
     std:"Confirm the spare part is physically good and don't have any external damage"},
-  {no:13,
+  {id:13,
     std:'Before replacing the spare parts, it is necessary to have the spare parts PN information and spare parts capacity verified by the service manager or the designated person, and for different PN spare parts, the compatibility needs to be confirmed before the replacement operation can be carried out.'},
-  {no:14,
+  {id:14,
     std:'For non-multibrand spare parts, the good and bad parts must labelled with sticker.'},
-  {no:15,
+  {id:15,
     std:'All the parts are being dismantle and revert accordingly.'},
 
-  {no:16,noSpan:6,stage:'After service',items:'Maintenance checks',itemsSpan:4,
+  {id:16,stageNo:3,stageSpan:6,stage:'After service',items:'Maintenance checks',itemsSpan:4,
     std:'Confirm all the parts of the equipment are identified normally and the server indicator light is normal'},
-  {no:17,
+  {id:17,
     std:'Confirm that the external cables such as network cable and optical fiber are installed correctly and the network cable indicator is normal'},
-  {no:18,
+  {id:18,
     std:'Confirm the specification configuration provided by customer is completed.'},
-  {no:19,
+  {id:19,
     std:'Confirm that the server is mounted properly and securely. Make sure that the server is mounted to the rail kit. If there is no railkit, please escalate to the team.'},
-  {no:20,items:'Customer confirmation',itemsSpan:2,
+  {id:20,items:'Customer confirmation',itemsSpan:2,
     std:'Confirm the customer feedback that the server is working normal and boot to OS normally'},
-  {no:21,
+  {id:21,
     std:'Confirm to return all non-returnable parts/access card to customer accordingly.'},
 ];
 const CL_NOTES=[
@@ -1242,62 +1218,106 @@ const CL_AUTO_REMARK={4:'Hot-swap, no shutdown',5:'Not applicable, hot-swap',
 const CL_NO_ITEMS=[4,5,7,8,9,10];
 
 function niceDateFromLong(dateStr){
-  // "19 July 2026" -> "19-Jul-2026", matching clPrint's filename convention.
+  // "19 July 2026" -> "19-Jul-2026", used in the downloaded filename.
   const m=dateStr.match(/^(\d{1,2})\s+([A-Za-z]+)\s+(\d{4})$/);
   return m ? `${m[1]}-${m[2].slice(0,3)}-${m[3]}` : dateStr;
 }
 
-$('dlChecklist').onclick=()=>{
-  if(!S.job){toast('Parse a ticket first, then click Download Checklist',1);return}
-  const j=S.job;
-  const prof=CL_PROFILE[j.category]||{hotSwap:false,fw:true};
-  const ticket=j.ticket_number||'unknown-ticket';
-  const engineer=$('cEng').value||'AZIZ';
-  const dateStr=new Date().toLocaleDateString('en-GB',{day:'numeric',month:'long',year:'numeric'});
+function drawAckCheckboxes(doc,cell,val){
+  const boxSize=2.6, midY=cell.y+cell.height/2;
+  const drawBox=(bx,checked,label)=>{
+    doc.setDrawColor(0); doc.setLineWidth(0.15);
+    doc.rect(bx,midY-boxSize/2,boxSize,boxSize);
+    if(checked){
+      doc.setLineWidth(0.3);
+      doc.line(bx+0.4,midY,bx+boxSize*0.42,midY+boxSize*0.38);
+      doc.line(bx+boxSize*0.42,midY+boxSize*0.38,bx+boxSize-0.3,midY-boxSize*0.35);
+      doc.setLineWidth(0.15);
+    }
+    doc.setFontSize(7);
+    doc.text(label,bx+boxSize+1,midY+1);
+  };
+  drawBox(cell.x+2,val==='Yes','Yes');
+  drawBox(cell.x+cell.width/2+1,val==='No','No');
+}
 
-  const body=CL_ITEMS.map(it=>{
-    const isNo=prof.hotSwap && CL_NO_ITEMS.includes(it.no);
+function computeRowsFromProfile(job){
+  // Fresh computation from parsed-ticket data + the hot-swap/FW profile --
+  // used by the one-click "Download Checklist" button on the Parse Ticket
+  // pane, which never touches the Checklist tab's own DOM state.
+  const prof=CL_PROFILE[job.category]||{hotSwap:false,fw:true};
+  return CL_ITEMS.map(it=>{
+    const isNo=prof.hotSwap && CL_NO_ITEMS.includes(it.id);
     const row={
       std:it.std,
       ack:isNo?'No':'Yes',
-      rem:isNo?(CL_AUTO_REMARK[it.no]||''):''
+      rem:isNo?(CL_AUTO_REMARK[it.id]||''):''
     };
-    if(it.noSpan) row.no={content:String(it.no),rowSpan:it.noSpan,styles:{valign:'middle',halign:'center'}};
-    if(it.stage) row.stage={content:it.stage,rowSpan:it.noSpan,styles:{valign:'middle'}};
+    if(it.stageNo){
+      row.no={content:String(it.stageNo),rowSpan:it.stageSpan,styles:{valign:'middle',halign:'center'}};
+      row.stage={content:it.stage,rowSpan:it.stageSpan,styles:{valign:'middle'}};
+    }
     if(it.itemsSpan) row.items={content:it.items,rowSpan:it.itemsSpan,styles:{valign:'middle'}};
     return row;
   });
+}
 
+function computeRowsFromDOM(){
+  // Reads the LIVE Checklist tab state -- respects any manual edits to
+  // checkboxes/remarks made after Auto-fill. Used by the Checklist tab's
+  // own Download PDF button (the manual-review-then-finalize workflow).
+  return CL_ITEMS.map(it=>{
+    const yesEl=document.querySelector(`input[name="ck${it.id}"][value="Yes"]`);
+    const noEl=document.querySelector(`input[name="ck${it.id}"][value="No"]`);
+    const ack=(yesEl&&yesEl.checked)?'Yes':((noEl&&noEl.checked)?'No':'');
+    const remEl=document.querySelector(`[data-rm="${it.id}"]`);
+    const row={std:it.std, ack, rem:remEl?remEl.value:''};
+    if(it.stageNo){
+      row.no={content:String(it.stageNo),rowSpan:it.stageSpan,styles:{valign:'middle',halign:'center'}};
+      row.stage={content:it.stage,rowSpan:it.stageSpan,styles:{valign:'middle'}};
+    }
+    if(it.itemsSpan) row.items={content:it.items,rowSpan:it.itemsSpan,styles:{valign:'middle'}};
+    return row;
+  });
+}
+
+function buildChecklistPDF(ticket,engineer,dateStr,rows){
   const doc=new jspdf.jsPDF({orientation:'landscape',unit:'mm',format:'a4'});
-  doc.setFontSize(13);
-  doc.text('Checklist for Engineer MA Service',148,12,{align:'center'});
-  doc.setFontSize(9);
-  doc.text(`Ticket NO.: ${ticket}`,10,19);
-  doc.text(`Date: ${dateStr}`,250,19,{align:'right'});
 
   doc.autoTable({
-    startY:23,
-    columns:[
-      {header:'No.',dataKey:'no'},
-      {header:'Stage',dataKey:'stage'},
-      {header:'Items',dataKey:'items'},
-      {header:'Check Standard',dataKey:'std'},
-      {header:'Acknowledge or not',dataKey:'ack'},
-      {header:'Remarks',dataKey:'rem'},
+    startY:10,
+    head:[
+      [{content:'Ticket NO.',colSpan:2,styles:{halign:'left',fontStyle:'bold'}},
+       {content:ticket,styles:{halign:'left',fontStyle:'normal'}},
+       {content:'Client',styles:{halign:'left',fontStyle:'bold'}},
+       {content:'Status',colSpan:2,styles:{halign:'center',fontStyle:'bold'}}],
+      ['No.','Stage','Items','Check Standard','Acknowledge or not','Remarks'],
     ],
-    body:body,
+    columns:[
+      {dataKey:'no'},{dataKey:'stage'},{dataKey:'items'},
+      {dataKey:'std'},{dataKey:'ack'},{dataKey:'rem'},
+    ],
+    body:rows,
     theme:'grid',
     styles:{fontSize:7.5,cellPadding:1.3,valign:'middle',lineColor:[0,0,0],lineWidth:.1,textColor:20},
-    headStyles:{fillColor:[240,240,240],textColor:20,fontStyle:'bold',fontSize:7.5},
+    headStyles:{fillColor:[240,240,240],textColor:20,fontSize:8,lineColor:[0,0,0],lineWidth:.1},
     columnStyles:{
       no:{cellWidth:8,halign:'center'},
       stage:{cellWidth:20},
       items:{cellWidth:36},
       std:{cellWidth:150},
-      ack:{cellWidth:24,halign:'center'},
-      rem:{cellWidth:32},
+      ack:{cellWidth:26,halign:'center'},
+      rem:{cellWidth:30},
     },
-    margin:{left:10,right:10},
+    margin:{left:10,right:10,top:10},
+    didParseCell:(data)=>{
+      if(data.section==='body' && data.column.dataKey==='ack') data.cell.text=[];
+    },
+    didDrawCell:(data)=>{
+      if(data.section==='body' && data.column.dataKey==='ack'){
+        drawAckCheckboxes(doc,data.cell,data.row.raw.ack);
+      }
+    },
   });
 
   let y=doc.lastAutoTable.finalY+6;
@@ -1308,15 +1328,37 @@ $('dlChecklist').onclick=()=>{
     doc.text(lines,10,y);
     y+=lines.length*3.6;
   });
-  y+=5;
-  doc.text(`Signature: ${engineer}`,10,y);
-  doc.text(`Date: ${dateStr}`,150,y);
+  y+=6;
+  doc.setFontSize(9);
+  doc.text('Signature :',10,y);
+  doc.text(engineer,32,y);
+  doc.line(30,y+1,80,y+1);
+  doc.text('Date :',150,y);
+  doc.text(dateStr,168,y);
+  doc.line(166,y+1,220,y+1);
 
-  const ticketSafe=ticket.replace(/[\\/:*?"<>|]/g,'-');
+  const ticketSafe=(ticket||'unknown-ticket').replace(/[\\/:*?"<>|]/g,'-');
   doc.save(`checklist ${niceDateFromLong(dateStr)}_${ticketSafe}.pdf`);
+}
+
+$('dlChecklist').onclick=()=>{
+  if(!S.job){toast('Parse a ticket first, then click Download Checklist',1);return}
+  const j=S.job;
+  const ticket=j.ticket_number||'unknown-ticket';
+  const engineer=$('cEng').value||'AZIZ';
+  const dateStr=new Date().toLocaleDateString('en-GB',{day:'numeric',month:'long',year:'numeric'});
+  buildChecklistPDF(ticket,engineer,dateStr,computeRowsFromProfile(j));
   toast('Checklist PDF downloaded');
 };
 
+$('clDownload').onclick=()=>{
+  const ticket=$('clTicket').textContent.trim()||'unknown-ticket';
+  const engineer=$('clSig').textContent.trim()||'AZIZ';
+  const dateStr=$('clDate').textContent.trim()
+    ||new Date().toLocaleDateString('en-GB',{day:'numeric',month:'long',year:'numeric'});
+  buildChecklistPDF(ticket,engineer,dateStr,computeRowsFromDOM());
+  toast('Checklist PDF downloaded');
+};
 // Init
 (async()=>{const c=await api('/api/config');if(c.engineer_name){$('aEng').value=c.engineer_name;$('cEng').value=c.engineer_name}})();
 </script></body></html>
