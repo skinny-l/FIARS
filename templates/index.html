@@ -168,34 +168,7 @@ th:hover{color:var(--ink)}
 .cl-sig .row{margin-bottom:14px}
 .cl-sig .row span.lbl{font-weight:700;margin-right:6px;color:var(--ink)}
 .cl-sig .row span.line{display:inline-block;border-bottom:1px solid var(--ln);min-width:200px;padding-bottom:1px;color:var(--ink)}
-@media print{
-  @page{size:A4 landscape;margin:6mm 5mm}
-  body{background:#fff!important;color:#000!important}
-  header,.tabs,.pane:not(.print-target){display:none!important}
-  .pane.print-target{display:block!important;padding:0;max-width:100%}
-  .pane.print-target>.card>div:first-child{display:none!important}
-  .toast{display:none!important}
-  .card{border:none;background:#fff;padding:0}
-  .cl-title{display:block;color:#000}
-  .cl{font-size:9.5px}
-  .cl th,.cl td{border-color:#000;padding:0px 3px;line-height:1.05}
-  .cl tr{page-break-inside:avoid}
-  .cl th{background:#fff;color:#000;padding:1px 3px}
-  .cl .num,.cl .stage,.cl .items,.cl .std{color:#000}
-  .cl .ack input[type=checkbox]{accent-color:#000}
-  .cl .rem input{border:none;color:#000;background:transparent}
-  .cl-meta .lbl,.cl-meta .val,.cl-meta .status-lbl{color:#000}
-  .cl-meta .val:empty::before{content:''}
-  .cl-notes{color:#000;border:1px solid #000;border-top:none;font-size:6.5px;padding:1px 4px;margin-top:0}
-  .cl-notes ol{margin:0 0 0 12px}
-  .cl-notes li{margin-bottom:0;line-height:1}
-  .cl-sig{margin-top:1px;font-size:8px;display:flex;gap:20px}
-  .cl-sig .row{margin-bottom:0}
-  .cl-sig .row span.line{min-width:100px}
-  .cl-notes .hdr{color:#000}
-  .cl-sig .row span.lbl,.cl-sig .row span.line{color:#000;border-color:#000}
-  button,.gh{display:none!important}
-}
+
 </style></head><body>
 <header><h1>FIARS</h1><span class="sub" id="statBar">loading…</span></header>
 <div class="tabs" id="tabs">
@@ -1153,13 +1126,13 @@ $('clAutoFill').onclick=()=>{
 
 
 
-// ══════ CHECKLIST PDF (direct download, no print dialog) ═══════════════
+// ══════ CHECKLIST PDF (both download buttons share this) ═══════════════
 // Mirrors the HTML checklist table above: meta header row, stage-index
 // numbering (1/2/3 spanning the whole stage -- not a per-item 1-21),
 // dual Yes/No checkboxes drawn to match the real form, and the footer
-// notes+signature. Content is duplicated as static data here (rather
-// than read from the DOM) so the tuned @media print CSS the Checklist
-// tab's own Print button relies on stays completely untouched.
+// notes+signature. Content is duplicated as static data here rather
+// than read from the DOM's <table> markup directly, since jsPDF/
+// autoTable builds a document from data, not a DOM/CSS snapshot.
 const CL_ITEMS=[
   {id:1,stageNo:1,stageSpan:3,stage:'Before service',items:'Ticket information',itemsSpan:1,
     std:'Study and understand the fault description and suggested onsite operation in portal before proceed with the maintanance activity'},

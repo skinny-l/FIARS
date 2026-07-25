@@ -8,7 +8,10 @@ Local, offline fault-diagnosis tool for data-centre maintenance teams.
    on-site diagnostic commands/log-collection steps for the fault category, and a "similar past
    cases" panel ranked by similarity × recency × fix-success.
 2. **Checklist** — auto-fills an inspection checklist from the parsed ticket (server info,
-   category-aware pre-checked items, hot-swap vs. power-off guidance) and prints cleanly to PDF.
+   category-aware pre-checked items, hot-swap vs. power-off guidance) and downloads a landscape
+   A4 PDF directly, no print dialog: one click from the Parse Ticket pane (always fresh from the
+   parsed ticket), or from the Checklist tab after manual review/edits. Generated client-side via
+   jsPDF (vendored locally, not a CDN — stays offline-capable like the rest of the app).
 3. **Searchable knowledge base** — error codes, solutions, affected parts. FTS5 search with
    synonym expansion (e.g. a query for "PSU" also matches cases worded as "power supply").
 4. **Quick add** — new knowledge entry in 30 seconds. Three required fields.
