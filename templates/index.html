@@ -230,7 +230,7 @@ th:hover{color:var(--ink)}
   <div id="parseOut" class="hidden">
     <!-- REPORT — right below input, no scrolling past detail to reach it -->
     <div class="card report-card" id="reportCard">
-      <h2>Report template <button class="gh sm" id="copyReport" style="float:right">Copy for OneNote</button></h2>
+      <h2>Report template <button class="gh sm" id="copyReport" style="float:right">Copy for OneNote</button> <button class="gh sm" id="dlChecklist" style="float:right">Download Checklist</button></h2>
       <div id="pReport" class="pre"></div>
     </div>
 
@@ -666,6 +666,8 @@ th:hover{color:var(--ink)}
   </div>
 </div>
 
+<script src="/vendor/jspdf.umd.min.js"></script>
+<script src="/vendor/jspdf.plugin.autotable.min.js"></script>
 <script>
 const $=id=>document.getElementById(id);
 let S={job:null,draft:null,cp:1,cs:'id',cd:'DESC'};
@@ -1175,6 +1177,144 @@ $('clPrint').onclick=()=>{
     $('p-checklist').classList.remove('print-target');
     document.title=origTitle;
   },1000);
+};
+
+// ══════ CHECKLIST PDF (direct download, no print dialog) ═══════════════
+// Static table content mirrors the HTML checklist above. Duplicated here
+// rather than read from the DOM: jsPDF/autoTable builds a fresh PDF from
+// data, not a DOM snapshot, and this keeps the tuned @media print CSS
+// used by the Checklist tab's own Print button completely untouched.
+const CL_ITEMS=[
+  {no:1,noSpan:3,stage:'Before service',items:'Ticket information',itemsSpan:1,
+    std:'Study and understand the fault description and suggested onsite operation in portal before proceed with the maintanance activity'},
+  {no:2,items:'Device information',itemsSpan:1,
+    std:'Check that the server SN is consistent with the ticket'},
+  {no:3,items:'Marking information',itemsSpan:1,
+    std:'Turn on UID to confirm server to be repaired; (Five elements of machine positioning: machine rack position, U position, SN, maintenance label, UID light)'},
+
+  {no:4,noSpan:12,stage:'During service',items:'Shut down and restart',itemsSpan:2,
+    std:'Double check the marks and SN before shutdown and restart after getting permission'},
+  {no:5,
+    std:"Take extra cautions on window ticket. If the server doesn't shutdown during the window maintanance time,please do not proceed with the repair acitivty and escalate inmediately."},
+  {no:6,items:'Aware on surrounding and peripheral',itemsSpan:1,
+    std:'Take extra cautious on server status, rack status, railkit status and etc. When server have to be unmounted, be very careful in unmounting the server.'},
+  {no:7,items:'Updating Firmware',itemsSpan:4,
+    std:'Record the firmware version and FRU before perform any activities, make sure these information are flashed accordingly after service.'},
+  {no:8,
+    std:'Confirm the device is general or customized, confirm the BIOS, BMC, FRU, SAS card, network card and other refresh requirements, then refresh as required'},
+  {no:9,
+    std:'If server are power off during repair, collect necessary logs and keep for at least 3 months.'},
+  {no:10,
+    std:'Check the FW version and customized information , ensure they are consistent with requirements after firmware refresh'},
+  {no:11,items:'Replacement of spare parts',itemsSpan:5,
+    std:"Make sure the accurate fault slot information and SN (especially Bad Hard Disk SN) before replacing spare part, if onsite found unmatch error with error provided in ticket, escalate immediately."},
+  {no:12,
+    std:"Confirm the spare part is physically good and don't have any external damage"},
+  {no:13,
+    std:'Before replacing the spare parts, it is necessary to have the spare parts PN information and spare parts capacity verified by the service manager or the designated person, and for different PN spare parts, the compatibility needs to be confirmed before the replacement operation can be carried out.'},
+  {no:14,
+    std:'For non-multibrand spare parts, the good and bad parts must labelled with sticker.'},
+  {no:15,
+    std:'All the parts are being dismantle and revert accordingly.'},
+
+  {no:16,noSpan:6,stage:'After service',items:'Maintenance checks',itemsSpan:4,
+    std:'Confirm all the parts of the equipment are identified normally and the server indicator light is normal'},
+  {no:17,
+    std:'Confirm that the external cables such as network cable and optical fiber are installed correctly and the network cable indicator is normal'},
+  {no:18,
+    std:'Confirm the specification configuration provided by customer is completed.'},
+  {no:19,
+    std:'Confirm that the server is mounted properly and securely. Make sure that the server is mounted to the rail kit. If there is no railkit, please escalate to the team.'},
+  {no:20,items:'Customer confirmation',itemsSpan:2,
+    std:'Confirm the customer feedback that the server is working normal and boot to OS normally'},
+  {no:21,
+    std:'Confirm to return all non-returnable parts/access card to customer accordingly.'},
+];
+const CL_NOTES=[
+  'The operation process should not violate the regulations of the hand-written "Red line operations"',
+  'The operation process should not violate the regulations of the datacenter and customer requirements',
+  'Select "no-operation" in the "complete or not" column if the relevant operation is not performed, fill in the reason in the "remarks" column if "no" is selected for any item',
+  'After the ticket is completed, the engineer needs to submit the PDF of the inspection checklist signed by himself or the photos for centralized filing.',
+];
+// Same 4/5/7/8/9/10-are-No-when-hot-swap rule as clAutoFill's setCk loop above.
+const CL_AUTO_REMARK={4:'Hot-swap, no shutdown',5:'Not applicable, hot-swap',
+  7:'No FW activity',8:'Not required',9:'No power off',10:'Not required'};
+const CL_NO_ITEMS=[4,5,7,8,9,10];
+
+function niceDateFromLong(dateStr){
+  // "19 July 2026" -> "19-Jul-2026", matching clPrint's filename convention.
+  const m=dateStr.match(/^(\d{1,2})\s+([A-Za-z]+)\s+(\d{4})$/);
+  return m ? `${m[1]}-${m[2].slice(0,3)}-${m[3]}` : dateStr;
+}
+
+$('dlChecklist').onclick=()=>{
+  if(!S.job){toast('Parse a ticket first, then click Download Checklist',1);return}
+  const j=S.job;
+  const prof=CL_PROFILE[j.category]||{hotSwap:false,fw:true};
+  const ticket=j.ticket_number||'unknown-ticket';
+  const engineer=$('cEng').value||'AZIZ';
+  const dateStr=new Date().toLocaleDateString('en-GB',{day:'numeric',month:'long',year:'numeric'});
+
+  const body=CL_ITEMS.map(it=>{
+    const isNo=prof.hotSwap && CL_NO_ITEMS.includes(it.no);
+    const row={
+      std:it.std,
+      ack:isNo?'No':'Yes',
+      rem:isNo?(CL_AUTO_REMARK[it.no]||''):''
+    };
+    if(it.noSpan) row.no={content:String(it.no),rowSpan:it.noSpan,styles:{valign:'middle',halign:'center'}};
+    if(it.stage) row.stage={content:it.stage,rowSpan:it.noSpan,styles:{valign:'middle'}};
+    if(it.itemsSpan) row.items={content:it.items,rowSpan:it.itemsSpan,styles:{valign:'middle'}};
+    return row;
+  });
+
+  const doc=new jspdf.jsPDF({orientation:'landscape',unit:'mm',format:'a4'});
+  doc.setFontSize(13);
+  doc.text('Checklist for Engineer MA Service',148,12,{align:'center'});
+  doc.setFontSize(9);
+  doc.text(`Ticket NO.: ${ticket}`,10,19);
+  doc.text(`Date: ${dateStr}`,250,19,{align:'right'});
+
+  doc.autoTable({
+    startY:23,
+    columns:[
+      {header:'No.',dataKey:'no'},
+      {header:'Stage',dataKey:'stage'},
+      {header:'Items',dataKey:'items'},
+      {header:'Check Standard',dataKey:'std'},
+      {header:'Acknowledge or not',dataKey:'ack'},
+      {header:'Remarks',dataKey:'rem'},
+    ],
+    body:body,
+    theme:'grid',
+    styles:{fontSize:7.5,cellPadding:1.3,valign:'middle',lineColor:[0,0,0],lineWidth:.1,textColor:20},
+    headStyles:{fillColor:[240,240,240],textColor:20,fontStyle:'bold',fontSize:7.5},
+    columnStyles:{
+      no:{cellWidth:8,halign:'center'},
+      stage:{cellWidth:20},
+      items:{cellWidth:36},
+      std:{cellWidth:150},
+      ack:{cellWidth:24,halign:'center'},
+      rem:{cellWidth:32},
+    },
+    margin:{left:10,right:10},
+  });
+
+  let y=doc.lastAutoTable.finalY+6;
+  doc.setFontSize(8);
+  doc.text('Remarks:',10,y); y+=4;
+  CL_NOTES.forEach((n,i)=>{
+    const lines=doc.splitTextToSize(`${i+1}. ${n}`,270);
+    doc.text(lines,10,y);
+    y+=lines.length*3.6;
+  });
+  y+=5;
+  doc.text(`Signature: ${engineer}`,10,y);
+  doc.text(`Date: ${dateStr}`,150,y);
+
+  const ticketSafe=ticket.replace(/[\\/:*?"<>|]/g,'-');
+  doc.save(`checklist ${niceDateFromLong(dateStr)}_${ticketSafe}.pdf`);
+  toast('Checklist PDF downloaded');
 };
 
 // Init
