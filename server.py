@@ -23,6 +23,10 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 INDEX = os.path.join(HERE, "templates", "index.html")
 UPLOADS = os.path.join(HERE, "uploads")
 os.makedirs(UPLOADS, exist_ok=True)
+VENDOR = os.path.join(HERE, "vendor")
+# Whitelist-only: these are the sole files servable under /vendor/<name>.
+# Not a general static file server, so there's no path-traversal surface.
+VENDOR_FILES = {"jspdf.umd.min.js", "jspdf.plugin.autotable.min.js"}
 
 
 def startup():
@@ -82,6 +86,13 @@ class Handler(BaseHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(data)
 
+    def _js(self, code, data):
+        self.send_response(code)
+        self.send_header("Content-Type", "application/javascript; charset=utf-8")
+        self.send_header("Content-Length", str(len(data)))
+        self.end_headers()
+        self.wfile.write(data)
+
     def _body(self):
         n = int(self.headers.get("Content-Length", 0))
         if not n: return {}
@@ -98,6 +109,15 @@ class Handler(BaseHTTPRequestHandler):
 
             if path in ("/", "/index.html"):
                 with open(INDEX, "rb") as f: return self._html(200, f.read())
+
+            if path.startswith("/vendor/"):
+                name = path[len("/vendor/"):]
+                if name not in VENDOR_FILES:
+                    return self._json(404, {"error": "not found"})
+                fp = os.path.join(VENDOR, name)
+                if not os.path.isfile(fp):
+                    return self._json(404, {"error": "not found"})
+                with open(fp, "rb") as f: return self._js(200, f.read())
 
             if path == "/api/stats":
                 return self._json(200, db.stats(CFG["db_path"]))
