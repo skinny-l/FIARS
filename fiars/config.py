@@ -8,6 +8,7 @@ _DEFAULTS = {
     "db_path": "fiars.db",
     "backup_dir": "backups",
     "engineer_name": "",
+    "safety_supervisor_name": "",
     "host": "127.0.0.1",
     "port": 5000,
 }

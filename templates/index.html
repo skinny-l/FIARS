@@ -169,11 +169,30 @@ th:hover{color:var(--ink)}
 .cl-sig .row span.lbl{font-weight:700;margin-right:6px;color:var(--ink)}
 .cl-sig .row span.line{display:inline-block;border-bottom:1px solid var(--ln);min-width:200px;padding-bottom:1px;color:var(--ink)}
 
+/* Dual-Person Ops */
+.dp-title{text-align:center;font-weight:700;font-size:15px;margin:0 0 8px 0;color:var(--ink)}
+.dp{width:100%;border-collapse:collapse;font-size:12px;table-layout:fixed}
+.dp td{border:1px solid var(--ln);padding:5px 7px;vertical-align:middle;word-wrap:break-word;line-height:1.35}
+.dp td.lbl{font-weight:600;color:var(--ink);white-space:nowrap;width:1%}
+.dp td.val{color:var(--ink)}
+.dp td.val[contenteditable]:empty::before{content:attr(data-placeholder);color:var(--mt)}
+.dp .yn{display:flex;gap:14px;align-items:center}
+.dp .yn label{display:inline-flex;align-items:center;gap:3px;font-size:12px;cursor:pointer}
+.dp .yn input[type=radio]{width:12px;height:12px;accent-color:var(--ac);margin:0;cursor:pointer}
+.dp-block{border:1px solid var(--ln);border-top:none;padding:8px 9px;font-size:11px;color:var(--ink);white-space:pre-wrap;line-height:1.45}
+.dp-block .hdr{font-weight:700;display:block;margin-bottom:4px}
+.dp-block.strong-hdr .hdr{font-weight:700}
+.dp-sig{margin-top:10px;font-size:11px}
+.dp-sig .row{margin-bottom:10px;display:flex;gap:18px;flex-wrap:wrap}
+.dp-sig .row span.lbl{font-weight:700;margin-right:6px;color:var(--ink)}
+.dp-sig .row span.line{display:inline-block;border-bottom:1px solid var(--ln);min-width:160px;padding-bottom:1px;color:var(--ink)}
+
 </style></head><body>
 <header><h1>FIARS</h1><span class="sub" id="statBar">loading…</span></header>
 <div class="tabs" id="tabs">
   <div class="tab on" data-t="parse">Parse Ticket</div>
   <div class="tab" data-t="checklist">Checklist</div>
+  <div class="tab" data-t="dualperson">Dual-Person Ops</div>
   <div class="tab" data-t="search">Knowledge Base</div>
   <div class="tab" data-t="add">Quick Add</div>
   <div class="tab" data-t="cases">Case History</div>
@@ -203,7 +222,7 @@ th:hover{color:var(--ink)}
   <div id="parseOut" class="hidden">
     <!-- REPORT — right below input, no scrolling past detail to reach it -->
     <div class="card report-card" id="reportCard">
-      <h2>Report template <button class="gh sm" id="copyReport" style="float:right">Copy for OneNote</button> <button class="gh sm" id="dlChecklist" style="float:right">Download Checklist</button></h2>
+      <h2>Report template <button class="gh sm" id="copyReport" style="float:right">Copy for OneNote</button> <button class="gh sm" id="dlChecklist" style="float:right">Download Checklist</button> <button class="gh sm" id="dlDualPerson" style="float:right">Download Dual-Person Form</button></h2>
       <div id="pReport" class="pre"></div>
     </div>
 
@@ -613,6 +632,90 @@ th:hover{color:var(--ink)}
     <div class="cl-sig">
       <div class="row"><span class="lbl">Signature :</span><span class="line" id="clSig" contenteditable="true">AZIZ</span></div>
       <div class="row"><span class="lbl">Date :</span><span class="line" id="clDate" contenteditable="true">&nbsp;</span></div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ DUAL-PERSON OPS ═══ -->
+<div class="pane" id="p-dualperson">
+  <div class="card">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
+      <h2 style="margin:0">Bytedance On-site Service Dual-Person Operation Specification</h2>
+      <div><button class="gh sm" id="dpAutoFill">Auto-fill from ticket</button> <button class="sm" id="dpDownload">Download PDF</button></div>
+    </div>
+
+    <div class="dp-title">Bytedance On-site Service Dual-Person Operation Specification V1.2</div>
+
+    <table class="dp">
+      <colgroup>
+        <col style="width:13%"><col style="width:20%"><col style="width:10%"><col style="width:24%"><col style="width:9%"><col style="width:24%">
+      </colgroup>
+      <tr>
+        <td class="lbl">Ticket Number</td>
+        <td class="val" id="dpTicket" contenteditable="true" data-placeholder="e.g. SHGD0002043795"></td>
+        <td class="lbl">Server SN</td>
+        <td class="val" id="dpServerSN" contenteditable="true" data-placeholder="e.g. 2KB800080"></td>
+        <td class="lbl">Location</td>
+        <td class="val" id="dpLocation" contenteditable="true" data-placeholder="e.g. MYJHBGDS_B1_DH2B-B-07-6"></td>
+      </tr>
+      <tr>
+        <td class="lbl">Service Scenario</td>
+        <td class="val" id="dpScenario" contenteditable="true">MA</td>
+        <td class="lbl" colspan="2">Fault Type</td>
+        <td class="val" id="dpFaultType" colspan="2" contenteditable="true" data-placeholder="e.g. GPU"></td>
+      </tr>
+      <tr>
+        <td class="lbl" colspan="2">Six Verification Elements Confirmation</td>
+        <td colspan="4">
+          <div class="yn">
+            <label><input type="radio" name="dpSix" value="YES" checked> YES</label>
+            <label><input type="radio" name="dpSix" value="NO"> NO</label>
+          </div>
+        </td>
+      </tr>
+      <tr>
+        <td class="lbl" colspan="2">Server Shutdown Authorization Available (Yes / No)</td>
+        <td colspan="4">
+          <div class="yn">
+            <label><input type="radio" name="dpShutdown" value="YES" checked> YES</label>
+            <label><input type="radio" name="dpShutdown" value="NO"> NO</label>
+          </div>
+        </td>
+      </tr>
+      <tr>
+        <td class="lbl">Engineer</td>
+        <td class="val" id="dpEngineer" contenteditable="true" data-placeholder="e.g. ISQ SYAZANI"></td>
+        <td class="lbl" colspan="2">Safety Supervisor</td>
+        <td class="val" id="dpSupervisor" colspan="2" contenteditable="true" data-placeholder="e.g. AZIZ JOHARI"></td>
+      </tr>
+    </table>
+
+    <div class="dp-block strong-hdr"><span class="hdr">[Mandatory Pre-Entry Requirements]</span>I fully understand the scope of this on-site service, master the service specifications and requirements, and will communicate with relevant stakeholders promptly for any unclear matters.
+Engineer Responsibilities: The executor of all on-site operations. Every operation must be confirmed by the Safety Supervisor before execution
+Safety Supervisor Responsibilities:
+The Safety supervisor with no authority to operate equipment independently. Must approve and authorize every operation action requested by the Engineer, and take accountability for the Engineer's requests; no authorization shall be granted without an operation request.
+It is forbidden to shut down the device (including through in-OS or BMC control, physical power button, keyboard shutdown, etc.), restart (including through in-OS or BMC control, physical power button, keyboard shutdown, etc.), and unplug the cable connecting to the server (including power cord, network cable, optical fiber, liquid-cooled connection cable, etc.), which must be operated by the on-site operation and maintenance personnel.</div>
+
+    <div class="dp-block strong-hdr"><span class="hdr">[Maintenance Operation Specifications]</span>1. Strictly implement three-level authorization: Customer Authorization, Technical Authorization, Administrative Authorization. No contact with faulty equipment is permitted if any authorization is missing.
+2. Strictly identify equipment via Six verification elements: Cabinet number, U position, SN, UID light, maintenance label, byte fixed asset number.
+3. Strictly abide by six prohibitions; any violation will result in disciplinary penalties of the highest severity.
+(1) It is strictly forbidden to operate customer equipment without customer authorization.
+(2) It is strictly forbidden to operate (including remote operation) repair equipment or other normal operating equipment during unauthorized hours.
+(3) It is strictly forbidden to use non-wave information release and service software versions (including tools) explicitly restricted by customers.
+(4) It is strictly forbidden to operate the equipment blindly without a plan or without review.
+(5) After the equipment is operated, it is necessary to conduct business verification, and it is strictly forbidden to leave the onsite without customer verification and confirmation.
+(6) On-site unexpected accidents must be reported as soon as possible, and it is strictly forbidden to conceal or delay the notification.</div>
+
+    <div class="dp-block strong-hdr"><span class="hdr">[Safety Inspection Specifications]</span>The Safety Supervisor shall conduct inspections in accordance with &lt;Bytedance Operations Redline&gt; and operational SOPs. Besides verifying physical actions such as shutdown, cable unplugging and disk replacement, all software operations including pressure testing and firmware flashing also require supervisor confirmation.
+I have read and fully understand all above contents and will comply strictly.</div>
+
+    <div class="dp-sig">
+      <div class="row">
+        <span class="lbl">Signature of Engineer &amp; Safety Supervisor:</span>
+        <span class="line" id="dpSigEng" contenteditable="true">&nbsp;</span>
+        <span class="line" id="dpSigSup" contenteditable="true">&nbsp;</span>
+      </div>
+      <div class="row"><span class="lbl">Signature Date :</span><span class="line" id="dpDate" contenteditable="true">&nbsp;</span></div>
     </div>
   </div>
 </div>
@@ -1332,6 +1435,198 @@ $('clDownload').onclick=()=>{
   buildChecklistPDF(ticket,engineer,dateStr,computeRowsFromDOM());
   toast('Checklist PDF downloaded');
 };
+
+// ══════ DUAL-PERSON OPS ══════════════════════════════════════════════════
+// Bytedance On-site Service Dual-Person Operation Specification V1.2.
+// Same two-entry-point pattern as the Checklist above: a one-click
+// "Download Dual-Person Form" button on the Parse Ticket pane (always
+// fresh from the parsed ticket) plus the tab's own Auto-fill/Download PDF
+// buttons (manual-review-then-finalize workflow, reads the live DOM state).
+let DP_SS_DEFAULT='';  // safety_supervisor_name from config, filled at Init
+
+$('dpDate').textContent=new Date().toLocaleDateString('en-GB',{day:'numeric',month:'long',year:'numeric'});
+
+function fillDualPersonFromJob(job){
+  $('dpTicket').textContent=job.ticket_number||'';
+  $('dpServerSN').textContent=job.server_sn||'';
+  $('dpLocation').textContent=job.location_full||job.location||'';
+  $('dpScenario').textContent='MA';
+  $('dpFaultType').textContent=job.fault_type||job.category||'';
+  const setRadio=(name,val)=>{
+    document.querySelectorAll(`input[name="${name}"]`).forEach(r=>r.checked=(r.value===val));
+  };
+  setRadio('dpSix','YES');
+  setRadio('dpShutdown','YES');
+}
+
+$('dpAutoFill').onclick=()=>{
+  if(!S.job){toast('Parse a ticket first, then click Auto-fill',1);return}
+  fillDualPersonFromJob(S.job);
+  $('dpEngineer').textContent=$('cEng').value||'';
+  $('dpSupervisor').textContent=DP_SS_DEFAULT||'';
+  $('dpSigEng').textContent=$('cEng').value||'\u00A0';
+  $('dpSigSup').textContent=DP_SS_DEFAULT||'\u00A0';
+  $('dpDate').textContent=new Date().toLocaleDateString('en-GB',{day:'numeric',month:'long',year:'numeric'});
+  toast('Dual-Person form auto-filled from parsed ticket');
+};
+
+const DP_MANDATORY_PRE_ENTRY=
+`I fully understand the scope of this on-site service, master the service specifications and requirements, and will communicate with relevant stakeholders promptly for any unclear matters.
+Engineer Responsibilities: The executor of all on-site operations. Every operation must be confirmed by the Safety Supervisor before execution
+Safety Supervisor Responsibilities:
+The Safety supervisor with no authority to operate equipment independently. Must approve and authorize every operation action requested by the Engineer, and take accountability for the Engineer's requests; no authorization shall be granted without an operation request.
+It is forbidden to shut down the device (including through in-OS or BMC control, physical power button, keyboard shutdown, etc.), restart (including through in-OS or BMC control, physical power button, keyboard shutdown, etc.), and unplug the cable connecting to the server (including power cord, network cable, optical fiber, liquid-cooled connection cable, etc.), which must be operated by the on-site operation and maintenance personnel.`;
+
+const DP_MAINTENANCE_SPEC=
+`1. Strictly implement three-level authorization: Customer Authorization, Technical Authorization, Administrative Authorization. No contact with faulty equipment is permitted if any authorization is missing.
+2. Strictly identify equipment via Six verification elements: Cabinet number, U position, SN, UID light, maintenance label, byte fixed asset number.
+3. Strictly abide by six prohibitions; any violation will result in disciplinary penalties of the highest severity.
+(1) It is strictly forbidden to operate customer equipment without customer authorization.
+(2) It is strictly forbidden to operate (including remote operation) repair equipment or other normal operating equipment during unauthorized hours.
+(3) It is strictly forbidden to use non-wave information release and service software versions (including tools) explicitly restricted by customers.
+(4) It is strictly forbidden to operate the equipment blindly without a plan or without review.
+(5) After the equipment is operated, it is necessary to conduct business verification, and it is strictly forbidden to leave the onsite without customer verification and confirmation.
+(6) On-site unexpected accidents must be reported as soon as possible, and it is strictly forbidden to conceal or delay the notification.`;
+
+const DP_SAFETY_INSPECTION=
+`The Safety Supervisor shall conduct inspections in accordance with <Bytedance Operations Redline> and operational SOPs. Besides verifying physical actions such as shutdown, cable unplugging and disk replacement, all software operations including pressure testing and firmware flashing also require supervisor confirmation.
+I have read and fully understand all above contents and will comply strictly.`;
+
+function dpRadioVal(name){
+  const el=document.querySelector(`input[name="${name}"]:checked`);
+  return el?el.value:'';
+}
+
+function buildDualPersonPDF(fields){
+  // fields: {ticket, serverSN, location, scenario, faultType, six, shutdown,
+  //          engineer, supervisor, sigEng, sigSup, dateStr}
+  const doc=new jspdf.jsPDF({orientation:'portrait',unit:'mm',format:'a4'});
+  const pageW=210, marginX=12, contentW=pageW-marginX*2;
+  let y=14;
+
+  doc.setFont(undefined,'bold'); doc.setFontSize(15);
+  doc.text('Bytedance On-site Service Dual-Person Operation Specification V1.2',pageW/2,y,{align:'center'});
+  y+=8;
+
+  // Meta grid, drawn with autoTable for clean borders (mirrors the xlsx's
+  // bordered meta rows), then the three long text blocks follow as
+  // plain bordered paragraphs since they're single free-text cells in
+  // the source document, not tabular data.
+  doc.autoTable({
+    startY:y,
+    body:[
+      ['Ticket Number',fields.ticket,'Server SN',fields.serverSN,'Location',fields.location],
+      ['Service Scenario',fields.scenario,'Fault Type',fields.faultType,'',''],
+      ['Six Verification Elements Confirmation',fields.six,'','','',''],
+      ['Server Shutdown Authorization Available (Yes / No)',fields.shutdown,'','','',''],
+      ['Engineer',fields.engineer,'Safety Supervisor',fields.supervisor,'',''],
+    ],
+    theme:'grid',
+    styles:{fontSize:9,cellPadding:2,valign:'middle',lineColor:[0,0,0],lineWidth:.15,textColor:20},
+    columnStyles:{
+      0:{cellWidth:46,fontStyle:'bold'},1:{cellWidth:36},
+      2:{cellWidth:34,fontStyle:'bold'},3:{cellWidth:30},
+      4:{cellWidth:20,fontStyle:'bold'},5:{cellWidth:contentW-46-36-34-30-20},
+    },
+    margin:{left:marginX,right:marginX},
+    didParseCell:(data)=>{
+      // Rows 2 and 3 (Six Elements / Shutdown Authorization) are single
+      // full-width label+value pairs in the source doc -- span the label
+      // across cols 0-3 and the value across cols 4-5.
+      if((data.row.index===2||data.row.index===3)){
+        if(data.column.index===0) data.cell.colSpan=4;
+        if(data.column.index===4) data.cell.colSpan=2;
+      }
+    },
+  });
+  y=doc.lastAutoTable.finalY+6;
+
+  const drawBlock=(title,body)=>{
+    doc.setFont(undefined,'bold'); doc.setFontSize(10);
+    const titleLines=doc.splitTextToSize(title,contentW-4);
+    doc.setFont(undefined,'normal'); doc.setFontSize(8.5);
+    const bodyLines=doc.splitTextToSize(body,contentW-4);
+    const blockH=(titleLines.length*4.6)+(bodyLines.length*3.9)+5;
+    if(y+blockH>287){doc.addPage();y=14}
+    doc.setDrawColor(0); doc.setLineWidth(.15);
+    doc.rect(marginX,y,contentW,blockH);
+    let ty=y+5;
+    doc.setFont(undefined,'bold'); doc.setFontSize(10);
+    doc.text(titleLines,marginX+2,ty); ty+=titleLines.length*4.6;
+    doc.setFont(undefined,'normal'); doc.setFontSize(8.5);
+    doc.text(bodyLines,marginX+2,ty);
+    y+=blockH+4;
+  };
+
+  drawBlock('[Mandatory Pre-Entry Requirements]',DP_MANDATORY_PRE_ENTRY);
+  drawBlock('[Maintenance Operation Specifications]',DP_MAINTENANCE_SPEC);
+  drawBlock('[Safety Inspection Specifications]',DP_SAFETY_INSPECTION);
+
+  if(y>270){doc.addPage();y=14}
+  doc.setFont(undefined,'normal'); doc.setFontSize(9);
+  doc.text('Signature of Engineer & Safety Supervisor:',marginX,y);
+  doc.text(fields.sigEng||'',marginX+78,y);
+  doc.line(marginX+76,y+1,marginX+118,y+1);
+  doc.text(fields.sigSup||'',marginX+124,y);
+  doc.line(marginX+122,y+1,marginX+164,y+1);
+  y+=10;
+  doc.text('Signature Date :',marginX,y);
+  doc.text(fields.dateStr||'',marginX+30,y);
+  doc.line(marginX+28,y+1,marginX+78,y+1);
+
+  // [ticket num]_[server sn].pdf, per spec — sanitised for filesystem safety.
+  const safe=s=>(s||'unknown').replace(/[\\/:*?"<>|]/g,'-');
+  doc.save(`${safe(fields.ticket)}_${safe(fields.serverSN)}.pdf`);
+}
+
+$('dlDualPerson').onclick=()=>{
+  if(!S.job){toast('Parse a ticket first, then click Download Dual-Person Form',1);return}
+  const j=S.job;
+  const dateStr=new Date().toLocaleDateString('en-GB',{day:'numeric',month:'long',year:'numeric'});
+  const engineer=$('cEng').value||'';
+  const supervisor=DP_SS_DEFAULT||'';
+  buildDualPersonPDF({
+    ticket:j.ticket_number||'unknown-ticket',
+    serverSN:j.server_sn||'unknown-sn',
+    location:j.location_full||j.location||'',
+    scenario:'MA',
+    faultType:j.fault_type||j.category||'',
+    six:'YES',
+    shutdown:'YES',
+    engineer,supervisor,
+    sigEng:engineer,sigSup:supervisor,
+    dateStr,
+  });
+  toast('Dual-Person Form PDF downloaded');
+};
+
+$('dpDownload').onclick=()=>{
+  buildDualPersonPDF({
+    ticket:$('dpTicket').textContent.trim()||'unknown-ticket',
+    serverSN:$('dpServerSN').textContent.trim()||'unknown-sn',
+    location:$('dpLocation').textContent.trim(),
+    scenario:$('dpScenario').textContent.trim()||'MA',
+    faultType:$('dpFaultType').textContent.trim(),
+    six:dpRadioVal('dpSix'),
+    shutdown:dpRadioVal('dpShutdown'),
+    engineer:$('dpEngineer').textContent.trim(),
+    supervisor:$('dpSupervisor').textContent.trim(),
+    sigEng:$('dpSigEng').textContent.trim(),
+    sigSup:$('dpSigSup').textContent.trim(),
+    dateStr:$('dpDate').textContent.trim()
+      ||new Date().toLocaleDateString('en-GB',{day:'numeric',month:'long',year:'numeric'}),
+  });
+  toast('Dual-Person Form PDF downloaded');
+};
+
 // Init
-(async()=>{const c=await api('/api/config');if(c.engineer_name){$('aEng').value=c.engineer_name;$('cEng').value=c.engineer_name}})();
+(async()=>{
+  const c=await api('/api/config');
+  if(c.engineer_name){$('aEng').value=c.engineer_name;$('cEng').value=c.engineer_name}
+  if(c.safety_supervisor_name){
+    DP_SS_DEFAULT=c.safety_supervisor_name;
+    $('dpSupervisor').textContent=DP_SS_DEFAULT;
+    $('dpSigSup').textContent=DP_SS_DEFAULT;
+  }
+})();
 </script></body></html>
