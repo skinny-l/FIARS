@@ -1522,14 +1522,19 @@ function buildDualPersonPDF(fields){
       ['Engineer',fields.engineer,'Safety Supervisor',fields.supervisor,'',''],
     ],
     theme:'grid',
-    styles:{fontSize:9,cellPadding:2,valign:'middle',lineColor:[0,0,0],lineWidth:.15,textColor:20},
+    styles:{fontSize:9,cellPadding:{top:3,right:2,bottom:3,left:2},valign:'middle',lineColor:[0,0,0],lineWidth:.15,textColor:20,overflow:'linebreak'},
     columnStyles:{
-      0:{cellWidth:46,fontStyle:'bold'},1:{cellWidth:36},
-      2:{cellWidth:34,fontStyle:'bold'},3:{cellWidth:30},
-      4:{cellWidth:20,fontStyle:'bold'},5:{cellWidth:contentW-46-36-34-30-20},
+      0:{cellWidth:30,fontStyle:'bold'},1:{cellWidth:28},
+      2:{cellWidth:24,fontStyle:'bold'},3:{cellWidth:26},
+      4:{cellWidth:34,fontStyle:'bold'},5:{cellWidth:contentW-30-28-24-26-34},
     },
     margin:{left:marginX,right:marginX},
     didParseCell:(data)=>{
+      // Row 1 ("Fault Type" row): value spans the rest of the row, same as
+      // the source doc's merged cell -- avoids two stray empty boxes.
+      if(data.row.index===1 && data.column.index===3){
+        data.cell.colSpan=3;
+      }
       // Rows 2 and 3 (Six Elements / Shutdown Authorization) are single
       // full-width label+value pairs in the source doc -- span the label
       // across cols 0-3 and the value across cols 4-5.
@@ -1562,17 +1567,19 @@ function buildDualPersonPDF(fields){
   drawBlock('[Maintenance Operation Specifications]',DP_MAINTENANCE_SPEC);
   drawBlock('[Safety Inspection Specifications]',DP_SAFETY_INSPECTION);
 
-  if(y>270){doc.addPage();y=14}
+  if(y>265){doc.addPage();y=14}
   doc.setFont(undefined,'normal'); doc.setFontSize(9);
   doc.text('Signature of Engineer & Safety Supervisor:',marginX,y);
-  doc.text(fields.sigEng||'',marginX+78,y);
-  doc.line(marginX+76,y+1,marginX+118,y+1);
-  doc.text(fields.sigSup||'',marginX+124,y);
-  doc.line(marginX+122,y+1,marginX+164,y+1);
-  y+=10;
+  y+=8;
+  const sigColW=(contentW-10)/2;
+  doc.text(fields.sigEng||'',marginX+sigColW/2,y,{align:'center'});
+  doc.line(marginX,y+2,marginX+sigColW,y+2);
+  doc.text(fields.sigSup||'',marginX+sigColW+10+sigColW/2,y,{align:'center'});
+  doc.line(marginX+sigColW+10,y+2,marginX+sigColW*2+10,y+2);
+  y+=12;
   doc.text('Signature Date :',marginX,y);
-  doc.text(fields.dateStr||'',marginX+30,y);
-  doc.line(marginX+28,y+1,marginX+78,y+1);
+  doc.text(fields.dateStr||'',marginX+35,y);
+  doc.line(marginX+30,y+1,marginX+90,y+1);
 
   // [ticket num]_[server sn].pdf, per spec — sanitised for filesystem safety.
   const safe=s=>(s||'unknown').replace(/[\\/:*?"<>|]/g,'-');
