@@ -160,7 +160,10 @@ class Handler(BaseHTTPRequestHandler):
                 return self._json(200 if dump else 404, dump or {"error": "not found"})
 
             if path == "/api/config":
-                return self._json(200, {"engineer_name": CFG.get("engineer_name", "")})
+                return self._json(200, {
+                    "engineer_name": CFG.get("engineer_name", ""),
+                    "safety_supervisor_name": CFG.get("safety_supervisor_name", ""),
+                })
 
             if path == "/api/export":
                 fn = db.export_all(CFG["db_path"], CFG.get("backup_dir", "backups"))
