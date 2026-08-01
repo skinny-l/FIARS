@@ -23,8 +23,10 @@ tracked but unused (no downstream purpose defined).
 Rows are matched to parsed ticket jobs (from parser.py) by Server SN, then
 disambiguated by category, then by order of appearance. This is the piece
 that currently has to be typed by hand: Ticket Number, OLD/NEW PN.
-Engineer is parsed (kept in the row dict) but deliberately not merged into
-the job or report — not needed downstream.
+Engineer is parsed and merged onto the matched job as job["dispatch_engineer"]
+(raw string, e.g. "Isq | Aziz" or "Haikal | Safiy Deliver onsite") for the
+Dual-Person Ops form to split into Engineer / Safety Supervisor names — not
+otherwise used in the main fault report.
 """
 from __future__ import annotations
 
@@ -179,6 +181,8 @@ def merge_dispatch(jobs: list[dict[str, Any]], rows: list[dict[str, Any]]) -> li
         # separately so report.py can prefer it without disturbing part.type.
         if match.get("faulty_part"):
             job["part"]["dispatch_label"] = match["faulty_part"]
+        if match.get("engineer"):
+            job["dispatch_engineer"] = match["engineer"]
         job["dispatch_matched"] = True
 
     # Second pass: any dispatch rows still unconsumed (remaining > 0) for a

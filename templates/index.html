@@ -1446,6 +1446,24 @@ let DP_SS_DEFAULT='';  // safety_supervisor_name from config, filled at Init
 
 $('dpDate').textContent=new Date().toLocaleDateString('en-GB',{day:'numeric',month:'long',year:'numeric'});
 
+// Splits a dispatch-table "engineer" cell into up to two on-site names for
+// Engineer / Safety Supervisor. Real cells look like "Isq | Aziz",
+// "Haikal | Safiy Deliver onsite", or occasionally 3 names / a single name
+// with no pipe at all — never a fixed shape, so this is deliberately
+// tolerant rather than strict.
+function splitDispatchEngineer(raw){
+  if(!raw) return {engineer:'',supervisor:''};
+  // Drop trailing logistics notes some rows carry after the names
+  // (e.g. "Deliver onsite", "onsite troubleshoot") — these ride along in
+  // the same cell as the last name and aren't part of anyone's name.
+  const cleaned=raw.replace(/\b(deliver onsite|onsite troubleshoot|priority)\b/gi,'').trim();
+  const names=cleaned.split('|').map(s=>s.trim()).filter(Boolean);
+  return {
+    engineer:names[0]||'',
+    supervisor:names[1]||'',
+  };
+}
+
 function fillDualPersonFromJob(job){
   $('dpTicket').textContent=job.ticket_number||'';
   $('dpServerSN').textContent=job.server_sn||'';
@@ -1462,10 +1480,16 @@ function fillDualPersonFromJob(job){
 $('dpAutoFill').onclick=()=>{
   if(!S.job){toast('Parse a ticket first, then click Auto-fill',1);return}
   fillDualPersonFromJob(S.job);
-  $('dpEngineer').textContent=$('cEng').value||'';
-  $('dpSupervisor').textContent=DP_SS_DEFAULT||'';
-  $('dpSigEng').textContent=$('cEng').value||'\u00A0';
-  $('dpSigSup').textContent=DP_SS_DEFAULT||'\u00A0';
+  // Prefer the dispatch table's per-ticket names (matches who's actually
+  // on-site for THIS job) over the config-box defaults; fall back to those
+  // defaults only when no dispatch table was pasted or nothing matched.
+  const names=splitDispatchEngineer(S.job.dispatch_engineer);
+  const engineer=names.engineer||$('cEng').value||'';
+  const supervisor=names.supervisor||DP_SS_DEFAULT||'';
+  $('dpEngineer').textContent=engineer;
+  $('dpSupervisor').textContent=supervisor;
+  $('dpSigEng').textContent=engineer||'\u00A0';
+  $('dpSigSup').textContent=supervisor||'\u00A0';
   $('dpDate').textContent=new Date().toLocaleDateString('en-GB',{day:'numeric',month:'long',year:'numeric'});
   toast('Dual-Person form auto-filled from parsed ticket');
 };
@@ -1517,8 +1541,8 @@ function buildDualPersonPDF(fields){
     body:[
       ['Ticket Number',fields.ticket,'Server SN',fields.serverSN,'Location',fields.location],
       ['Service Scenario',fields.scenario,'Fault Type',fields.faultType,'',''],
-      ['Six Verification Elements Confirmation',fields.six,'','','',''],
-      ['Server Shutdown Authorization Available (Yes / No)',fields.shutdown,'','','',''],
+      ['Six Verification Elements Confirmation','','','',fields.six,''],
+      ['Server Shutdown Authorization Available (Yes / No)','','','',fields.shutdown,''],
       ['Engineer',fields.engineer,'Safety Supervisor',fields.supervisor,'',''],
     ],
     theme:'grid',
@@ -1540,7 +1564,7 @@ function buildDualPersonPDF(fields){
       // across cols 0-3 and the value across cols 4-5.
       if((data.row.index===2||data.row.index===3)){
         if(data.column.index===0) data.cell.colSpan=4;
-        if(data.column.index===4) data.cell.colSpan=2;
+        if(data.column.index===4){ data.cell.colSpan=2; data.cell.styles.halign='center'; }
       }
     },
   });
@@ -1590,8 +1614,9 @@ $('dlDualPerson').onclick=()=>{
   if(!S.job){toast('Parse a ticket first, then click Download Dual-Person Form',1);return}
   const j=S.job;
   const dateStr=new Date().toLocaleDateString('en-GB',{day:'numeric',month:'long',year:'numeric'});
-  const engineer=$('cEng').value||'';
-  const supervisor=DP_SS_DEFAULT||'';
+  const names=splitDispatchEngineer(j.dispatch_engineer);
+  const engineer=names.engineer||$('cEng').value||'';
+  const supervisor=names.supervisor||DP_SS_DEFAULT||'';
   buildDualPersonPDF({
     ticket:j.ticket_number||'unknown-ticket',
     serverSN:j.server_sn||'unknown-sn',
