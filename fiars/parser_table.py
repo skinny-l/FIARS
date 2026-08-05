@@ -53,7 +53,17 @@ def parse_dispatch_table(raw: str) -> list[dict[str, Any]]:
     comes up short (fewer than 11 cells before the next date line) is kept
     under '_unparsed' instead of silently guessing.
     """
-    lines = [ln.strip() for ln in raw.splitlines() if ln.strip()]
+    # Trim only *leading/trailing* blank runs — a blank line in the middle
+    # of the paste represents a genuinely empty cell (e.g. a row with no
+    # Case ID# or no Model) and must be kept as "" so every field after it
+    # stays in its correct column position. Dropping all blank lines used
+    # to be the behaviour here and caused silent column-shift mismatches
+    # whenever any row had an empty cell.
+    lines = [ln.strip() for ln in raw.splitlines()]
+    while lines and not lines[0]:
+        lines.pop(0)
+    while lines and not lines[-1]:
+        lines.pop()
 
     # Header block is optional: engineers sometimes paste just the data rows
     # (no "Date / Ticket No# / ..." header) when copying a subset of a table.

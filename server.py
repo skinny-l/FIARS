@@ -10,8 +10,8 @@ from urllib.parse import urlparse, parse_qs
 from fiars import db
 from fiars.extract import extract_text
 from fiars.config import load_config
-from fiars.parser import parse_ticket, parse_multi_ticket, search_text
-from fiars.parser_table import parse_dispatch_table, merge_dispatch
+from fiars.parser import parse_ticket, parse_multi_ticket, search_text, infer_category
+from fiars.parser_table import parse_dispatch_table, merge_dispatch, HEADERS
 from fiars.recommend import diagnose
 from fiars.report import build_report, build_combined_report, default_draft
 from fiars.smart_search import smart_search
@@ -192,14 +192,33 @@ class Handler(BaseHTTPRequestHandler):
                 cid = db.add_case(CFG["db_path"], b)
                 return self._json(200, {"ok": True, "id": cid})
 
+            if path == "/api/dispatch_preview":
+                b = self._body()
+                rows = parse_dispatch_table(b.get("raw", ""))
+                return self._json(200, {"rows": rows, "headers": HEADERS})
+
             if path == "/api/parse":
                 b = self._body()
                 raw = b.get("raw", "")
                 if not raw.strip():
                     return self._json(400, {"error": "Paste the fault block first."})
                 jobs = parse_multi_ticket(raw, b.get("ticket_number", ""))
+                # Prefer already-parsed (and possibly hand-corrected in the
+                # UI table) rows over re-parsing the raw dispatch text, so a
+                # fix made in the preview table actually sticks. Falls back
+                # to parsing dispatch_table if dispatch_rows wasn't sent
+                # (e.g. an older client), so nothing breaks either way.
+                dispatch_rows = b.get("dispatch_rows")
                 dispatch_raw = b.get("dispatch_table", "")
-                if dispatch_raw.strip():
+                if dispatch_rows:
+                    rows = dispatch_rows
+                    # Faulty Part may have been hand-edited in the table —
+                    # recompute category from it rather than trust a
+                    # possibly-stale value sent from the client.
+                    for row in rows:
+                        row["category"] = infer_category(row.get("faulty_part", ""))
+                    merge_dispatch(jobs, rows)
+                elif dispatch_raw.strip():
                     rows = parse_dispatch_table(dispatch_raw)
                     merge_dispatch(jobs, rows)
                 results = []
