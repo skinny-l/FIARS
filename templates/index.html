@@ -187,6 +187,20 @@ th:hover{color:var(--ink)}
 .dp-sig .row span.lbl{font-weight:700;margin-right:6px;color:var(--ink)}
 .dp-sig .row span.line{display:inline-block;border-bottom:1px solid var(--ln);min-width:160px;padding-bottom:1px;color:var(--ink)}
 
+/* Dispatch table preview — live, editable mirror of the pasted dispatch
+   table, so a column mismatch is visible (and fixable in place) before
+   Parse & diagnose instead of surfacing later as a wrong PN. */
+.dtp-wrap{overflow-x:auto;border:1px solid var(--ln);border-radius:var(--r-md)}
+.dtp{width:max-content;min-width:100%;border-collapse:collapse;font-size:11.5px}
+.dtp th,.dtp td{border:1px solid var(--ln);padding:5px 8px;vertical-align:top;word-wrap:break-word;max-width:180px}
+.dtp th{background:var(--p2);white-space:nowrap;color:var(--mt);position:sticky;top:0}
+.dtp td[contenteditable]{cursor:text;color:var(--ink)}
+.dtp td[contenteditable]:hover{background:var(--p2)}
+.dtp td[contenteditable]:focus{outline:2px solid var(--ac);outline-offset:-2px;background:var(--p3)}
+.dtp td[contenteditable]:empty::before{content:attr(data-placeholder);color:var(--mt)}
+.dtp tr.dtp-warn td{background:rgba(255,159,10,.14)}
+.dtp-warn-label{color:var(--wn);font-weight:650;font-size:11px}
+
 </style></head><body>
 <header><h1>FIARS</h1><span class="sub" id="statBar">loading…</span></header>
 <div class="tabs" id="tabs">
@@ -215,6 +229,17 @@ th:hover{color:var(--ink)}
       <h2>Tickets in this email <span id="ticketListCount" class="badge b-mt"></span>
         <button class="gh sm" id="copyTickets" style="float:right">Copy list</button></h2>
       <div id="ticketListBody" class="pre"></div>
+    </div>
+    <div class="card hidden" id="dispatchTableCard" style="margin-top:14px;margin-bottom:0">
+      <h2>Parsed dispatch table <span id="dispatchTableCount" class="badge b-mt"></span>
+        <span id="dispatchTableWarn" class="badge b-wn hidden" style="margin-left:6px"></span></h2>
+      <div class="dtp-wrap"><table class="dtp" id="dispatchTable">
+        <thead><tr>
+          <th>Date</th><th>Ticket No#</th><th>Case ID#</th><th>Server SN</th><th>Rack Info</th>
+          <th>Faulty Part</th><th>OLD PN</th><th>NEW PN</th><th>Maker</th><th>Model</th><th>Engineer</th>
+        </tr></thead>
+        <tbody id="dispatchTableBody"></tbody>
+      </table></div>
     </div>
     <div style="margin-top:18px"><button id="parseBtn">Parse &amp; diagnose</button></div>
   </div>
@@ -806,10 +831,64 @@ $('copyTickets').onclick=()=>{
   navigator.clipboard.writeText(tickets.join('\n')).then(()=>toast('Ticket list copied')).catch(()=>toast('Failed',1));
 };
 
+// ══════ DISPATCH TABLE PREVIEW (editable, server-parsed via /api/dispatch_preview) ═
+// Calls the real Python parser (parser_table.py) instead of re-implementing
+// its row-splitting logic in JS a second time, so this can never drift out
+// of sync with what actually gets merged. Cells are editable — a fix made
+// here is what's sent on Parse & diagnose (see dispatchRows below), not
+// just a visual proofread. NOTE: re-pasting/editing the raw textarea above
+// re-parses from scratch and replaces dispatchRows, so a cell fix only
+// survives up to the next raw-text edit — fix cells last, then parse.
+const DTP_FIELDS=["date","ticket_no","case_id","server_sn","rack_info",
+  "faulty_part","old_pn","new_pn","maker","model","engineer"];
+let dispatchRows=[];
+let _dtpTimer=null;
+function renderDispatchTable(rows){
+  const card=$('dispatchTableCard');
+  if(!rows.length){card.classList.add('hidden');$('dispatchTableBody').innerHTML='';return}
+  card.classList.remove('hidden');
+  const good=rows.filter(r=>!r._unparsed);
+  $('dispatchTableCount').textContent=good.length+' row'+(good.length===1?'':'s');
+  const bad=rows.length-good.length;
+  const warnEl=$('dispatchTableWarn');
+  if(bad){warnEl.textContent=bad+" row"+(bad===1?'':'s')+" couldn't be split — see below";warnEl.classList.remove('hidden')}
+  else warnEl.classList.add('hidden');
+  $('dispatchTableBody').innerHTML=rows.map((r,i)=>{
+    if(r._unparsed){
+      return `<tr class="dtp-warn" data-i="${i}"><td colspan="11">`+
+        `<span class="dtp-warn-label">Couldn't split into columns:</span> ${esc(r._unparsed.join(' / '))}</td></tr>`;
+    }
+    return `<tr data-i="${i}">`+DTP_FIELDS.map(f=>
+      `<td contenteditable="true" data-f="${f}" data-placeholder="—">${esc(r[f]||'')}</td>`
+    ).join('')+`</tr>`;
+  }).join('');
+}
+async function refreshDispatchTable(){
+  const raw=$('pDispatch').value;
+  if(!raw.trim()){dispatchRows=[];renderDispatchTable([]);return}
+  const r=await api('/api/dispatch_preview',J({raw}));
+  if(r.error||!r.rows)return;
+  dispatchRows=r.rows;
+  renderDispatchTable(dispatchRows);
+}
+$('pDispatch').addEventListener('input',()=>{
+  clearTimeout(_dtpTimer);
+  _dtpTimer=setTimeout(refreshDispatchTable,350);
+});
+// Delegated listener: a cell edit updates the in-memory row directly so
+// the fix is what actually gets submitted, not just displayed.
+$('dispatchTableBody').addEventListener('input',e=>{
+  const td=e.target.closest('td[data-f]');
+  if(!td)return;
+  const i=parseInt(td.closest('tr').dataset.i,10);
+  if(dispatchRows[i])dispatchRows[i][td.dataset.f]=td.textContent.trim();
+});
+
 // ══════ PARSE TICKET (MISSION BRIEFING) ═════════════════════════════════
 $('parseBtn').onclick=async()=>{
   const btn=$('parseBtn');btn.disabled=true;btn.innerHTML='<span class="sp"></span>Parsing…';
-  const r=await api('/api/parse',J({raw:$('pRaw').value,ticket_number:$('pTicket').value,dispatch_table:$('pDispatch').value}));
+  const r=await api('/api/parse',J({raw:$('pRaw').value,ticket_number:$('pTicket').value,
+    dispatch_table:$('pDispatch').value,dispatch_rows:dispatchRows.filter(row=>!row._unparsed)}));
   btn.disabled=false;btn.textContent='Parse & diagnose';
   if(r.error){toast(r.error,1);return}
   const blocks=r.multi?r.blocks:[r];

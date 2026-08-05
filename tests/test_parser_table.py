@@ -450,6 +450,80 @@ Aziz Deliver onsite"""
     assert rows[1]["server_sn"] == "21B927176"
 
 
+def test_blank_cell_mid_row_does_not_shift_columns():
+    # A row with a genuinely empty cell (blank Case ID#) must not shift
+    # every field after it into the wrong column. This was the actual
+    # cause of the "sometimes" paste mismatches — blank lines used to be
+    # silently dropped, which desynced OLD PN/NEW PN/Maker/Model/Engineer
+    # by one position whenever any cell in a row was empty.
+    row_with_blank_cell = """Date
+Ticket No#
+Case ID#
+Server SN
+Rack Info
+Faulty Part
+OLD PN
+NEW PN
+Maker
+Model
+Engineer
+2/7/2026
+SHGD0002019999
+
+21C938088
+MYJHBGDS_B4_DH1B-B-10-40
+Hard drive
+V0232PY0000000ZY
+V0233JP0000000ZY
+Q
+QC5476M6D
+Fahrul Deliver onsite"""
+    rows = parse_dispatch_table(row_with_blank_cell)
+    assert len(rows) == 1
+    row = rows[0]
+    assert row["ticket_no"] == "SHGD0002019999"
+    assert row["case_id"] == ""
+    assert row["server_sn"] == "21C938088"
+    assert row["old_pn"] == "V0232PY0000000ZY"
+    assert row["new_pn"] == "V0233JP0000000ZY"
+    assert row["maker"] == "Q"
+    assert row["model"] == "QC5476M6D"
+    assert row["engineer"] == "Fahrul Deliver onsite"
+
+
+def test_blank_cell_in_second_row_does_not_shift_first_row():
+    # Same blank-cell case, but on the SECOND row of a two-row paste, to
+    # confirm row-boundary detection (anchored on the Date cell) isn't
+    # thrown off by an empty cell either.
+    two_rows_second_blank = DISPATCH_ROW_HDD + """
+2/8/2026
+SHGD0002020000
+SHSJ0004150099
+21C938099
+MYJHBGDS_B4_DH1B-B-11-41
+Memory
+
+V0040NM0000000ZY
+Q
+QC5476M6D
+Fahrul Deliver onsite"""
+    rows = parse_dispatch_table(two_rows_second_blank)
+    assert len(rows) == 2
+    assert rows[0]["server_sn"] == "21C938088"  # first row unaffected
+    second = rows[1]
+    assert second["ticket_no"] == "SHGD0002020000"
+    assert second["old_pn"] == ""
+    assert second["new_pn"] == "V0040NM0000000ZY"
+    assert second["maker"] == "Q"
+
+
+def test_leading_and_trailing_blank_lines_still_ignored():
+    padded = "\n\n" + DISPATCH_ROW_HDD + "\n\n\n"
+    rows = parse_dispatch_table(padded)
+    assert len(rows) == 1
+    assert rows[0]["server_sn"] == "21C938088"
+
+
 if __name__ == "__main__":
     for name, fn in sorted(globals().items()):
         if name.startswith("test_") and callable(fn):
