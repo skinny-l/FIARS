@@ -524,6 +524,62 @@ def test_leading_and_trailing_blank_lines_still_ignored():
     assert rows[0]["server_sn"] == "21X100001"
 
 
+def test_paragraph_separated_paste_does_not_shift_every_column():
+    # Some webmail/Outlook copies turn *every* cell into its own paragraph
+    # with a blank line after it, not just empty cells (Date, "", Ticket
+    # No#, "", Case ID#, "", ...). The blank-cell-preserving logic that
+    # fixed the single-blank-cell case reads each of these separators as
+    # "this cell is empty" and shifts every real value one column late —
+    # Server SN lands blank (so merge_dispatch can never match it), OLD PN
+    # lands in Server SN's slot, and so on all the way down the row.
+    paragraph_separated = (
+        "Riley | Alex \u2013 BDC02 @ 9:30am\n\n"
+        "Date\n\nTicket No#\n\nCase ID#\n\nServer SN\n\nRack Info\n\n"
+        "Faulty Part\n\nOLD PN\n\nNEW PN\n\nMaker\n\nModel\n\nEngineer\n\n"
+        "12/8/2026\n\nSHGD0009000013\n\nSHSJ0009100011\n\n2TXA00013\n\n"
+        "TESTDC2_B1_G4-AA-03-17\n\nHard Drive\n\nV0233D30000000ZY\n\n"
+        "V0233D30000000ZY\n\nQ\n\nS820-A\n\nRiley | Alex Deliver onsite\n\n"
+        "12/8/2026\n\nSHGD0009000014\n\nSHSJ0009100012\n\n24X100009\n\n"
+        "TESTDC2_B1_G4-K-04-27\n\nMemory\n\nV0040PD0000000ZY\n\n"
+        "V0040PD0000000ZY\n\nQ\n\nQC5280D7\n\nRiley | Alex Deliver onsite"
+    )
+    rows = parse_dispatch_table(paragraph_separated)
+    assert len(rows) == 2
+    first, second = rows
+    assert first["ticket_no"] == "SHGD0009000013"
+    assert first["case_id"] == "SHSJ0009100011"
+    assert first["server_sn"] == "2TXA00013"
+    assert first["rack_info"] == "TESTDC2_B1_G4-AA-03-17"
+    assert first["faulty_part"] == "Hard Drive"
+    assert first["old_pn"] == "V0233D30000000ZY"
+    assert first["new_pn"] == "V0233D30000000ZY"
+    assert first["maker"] == "Q"
+    assert first["model"] == "S820-A"
+    assert first["engineer"] == "Riley | Alex Deliver onsite"
+    assert second["server_sn"] == "24X100009"
+    assert second["old_pn"] == "V0040PD0000000ZY"
+
+
+def test_paragraph_separated_row_with_genuinely_empty_cell():
+    # A truly empty cell inside this doubled format shows up as two
+    # consecutive blank lines (its own blank content line, then its
+    # separator) — must still resolve to "" in the right slot, not
+    # collapse and shift what follows.
+    paragraph_separated_blank_case_id = (
+        "Date\n\nTicket No#\n\nCase ID#\n\nServer SN\n\nRack Info\n\n"
+        "Faulty Part\n\nOLD PN\n\nNEW PN\n\nMaker\n\nModel\n\nEngineer\n\n"
+        "12/8/2026\n\nSHGD0009000013\n\n\n\n2TXA00013\n\n"
+        "TESTDC2_B1_G4-AA-03-17\n\nHard Drive\n\nV0233D30000000ZY\n\n"
+        "V0233D30000000ZY\n\nQ\n\nS820-A\n\nRiley | Alex Deliver onsite"
+    )
+    rows = parse_dispatch_table(paragraph_separated_blank_case_id)
+    assert len(rows) == 1
+    row = rows[0]
+    assert row["case_id"] == ""
+    assert row["server_sn"] == "2TXA00013"
+    assert row["old_pn"] == "V0233D30000000ZY"
+
+
 if __name__ == "__main__":
     for name, fn in sorted(globals().items()):
         if name.startswith("test_") and callable(fn):

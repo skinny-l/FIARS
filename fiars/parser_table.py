@@ -16,6 +16,14 @@ row's start is detected by its Date cell matching a date-like pattern
 the next detected date line belongs to that row. Any lines beyond the 11th
 are folded into the engineer field rather than desyncing the next row.
 
+Some webmail/Outlook sources instead put every cell — filled or empty — on
+its own paragraph, with a blank line after each one (Date, "", Ticket No#,
+"", Case ID#, ...). _degrouped() detects this by the row's length (roughly
+double HEADERS) and a run of blank lines at the separator positions, then
+collapses it back to one entry per cell before the mapping below runs. Left
+undetected, those separators get read as genuinely-empty cells and every
+real value — including Server SN — shifts one column late.
+
 Maker/Model describe the *server* (chassis SKU), not the replacement part —
 kept as metadata only, never written into the part fields. Case ID# is
 tracked but unused (no downstream purpose defined).
@@ -82,7 +90,7 @@ def parse_dispatch_table(raw: str) -> list[dict[str, Any]]:
     rows: list[dict[str, Any]] = []
     for idx, s in enumerate(row_starts):
         e = row_starts[idx + 1] if idx + 1 < len(row_starts) else len(body)
-        chunk = body[s:e]
+        chunk = _degrouped(body[s:e])
         if len(chunk) < len(HEADERS):
             rows.append({"_unparsed": chunk})
             continue
@@ -95,6 +103,27 @@ def parse_dispatch_table(raw: str) -> list[dict[str, Any]]:
         rows.append(row)
 
     return rows
+
+
+def _degrouped(chunk: list[str]) -> list[str]:
+    """Undo Outlook/webmail's other common export shape: instead of one
+    line per cell, every cell -- filled or empty -- is its own paragraph
+    followed by a blank separator line (Date, '', Ticket No#, '', ...).
+    Left alone, the row-splitter above reads those separators as if they
+    were genuinely-empty cells and every real value shifts one column
+    late (Server SN lands blank, OLD PN lands in Server SN's slot, etc.),
+    which then blocks the Server SN match in merge_dispatch() entirely.
+
+    Signature: the row is roughly double HEADERS' length, and the first
+    few odd-indexed lines (the separator positions) are blank. A row with
+    just one or two genuinely empty cells never hits either condition, so
+    the plain one-line-per-cell format above is untouched by this."""
+    if len(chunk) < len(HEADERS) * 2 - 4:
+        return chunk
+    sample = chunk[1:9:2]
+    if sample and all(c == "" for c in sample):
+        return chunk[0::2]
+    return chunk
 
 
 # Matches a trailing unit-count marker like " x2" or " ×3" — requires a

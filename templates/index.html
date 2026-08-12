@@ -225,6 +225,7 @@ th:hover{color:var(--ink)}
       <label>Dispatch table (optional — paste the shift assignment email to auto-fill Ticket No# and OLD/NEW PN)</label>
       <textarea id="pDispatch" rows="4" placeholder="Paste the dispatch/assignment table here (Date, Ticket No#, Case ID#, Server SN, Rack Info, Faulty Part, OLD PN, NEW PN, Maker, Model, Engineer)…"></textarea>
     </div>
+    <div style="margin-top:14px"><button id="parseBtn">Parse &amp; diagnose</button></div>
     <div class="card ticket-list-card hidden" id="ticketListCard" style="margin-top:14px;margin-bottom:0">
       <h2>Tickets in this email <span id="ticketListCount" class="badge b-mt"></span>
         <button class="gh sm" id="copyTickets" style="float:right">Copy list</button></h2>
@@ -241,7 +242,6 @@ th:hover{color:var(--ink)}
         <tbody id="dispatchTableBody"></tbody>
       </table></div>
     </div>
-    <div style="margin-top:18px"><button id="parseBtn">Parse &amp; diagnose</button></div>
   </div>
 
   <div id="parseOut" class="hidden">
