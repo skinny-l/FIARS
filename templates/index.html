@@ -234,13 +234,24 @@ th:hover{color:var(--ink)}
     <div class="card hidden" id="dispatchTableCard" style="margin-top:14px;margin-bottom:0">
       <h2>Parsed dispatch table <span id="dispatchTableCount" class="badge b-mt"></span>
         <span id="dispatchTableWarn" class="badge b-wn hidden" style="margin-left:6px"></span></h2>
-      <div class="dtp-wrap"><table class="dtp" id="dispatchTable">
-        <thead><tr>
-          <th>Date</th><th>Ticket No#</th><th>Case ID#</th><th>Server SN</th><th>Rack Info</th>
-          <th>Faulty Part</th><th>OLD PN</th><th>NEW PN</th><th>Maker</th><th>Model</th><th>Engineer</th>
-        </tr></thead>
-        <tbody id="dispatchTableBody"></tbody>
-      </table></div>
+      <div class="detail-toggle" id="dispatchToggle" style="margin:8px 0">
+        <span id="dispatchToggleLabel">Show table</span>
+        <span class="chev" id="dispatchChev">⌄</span>
+      </div>
+      <div id="dispatchTableWrap" class="hidden">
+        <div class="dtp-wrap"><table class="dtp" id="dispatchTable">
+          <thead><tr>
+            <th>Date</th><th>Ticket No#</th><th>Case ID#</th><th>Server SN</th><th>Rack Info</th>
+            <th>Faulty Part</th><th>OLD PN</th><th>NEW PN</th><th>Maker</th><th>Model</th><th>Engineer</th>
+          </tr></thead>
+          <tbody id="dispatchTableBody"></tbody>
+        </table></div>
+      </div>
+    </div>
+    <div class="card hidden" id="rebootListCard" style="margin-top:14px;margin-bottom:0">
+      <h2>Reboot &amp; disk-slot permission request
+        <button class="gh sm" id="copyRebootList" style="float:right">Copy</button></h2>
+      <div id="rebootListBody" class="pre"></div>
     </div>
   </div>
 
@@ -865,16 +876,25 @@ function renderDispatchTable(rows){
 }
 async function refreshDispatchTable(){
   const raw=$('pDispatch').value;
-  if(!raw.trim()){dispatchRows=[];renderDispatchTable([]);return}
+  if(!raw.trim()){dispatchRows=[];renderDispatchTable([]);renderRebootList();return}
   const r=await api('/api/dispatch_preview',J({raw}));
   if(r.error||!r.rows)return;
   dispatchRows=r.rows;
   renderDispatchTable(dispatchRows);
+  renderRebootList();
 }
 $('pDispatch').addEventListener('input',()=>{
   clearTimeout(_dtpTimer);
   _dtpTimer=setTimeout(refreshDispatchTable,350);
 });
+// Table itself starts collapsed (same pattern as "Show diagnosis details")
+// so a big pasted dispatch email doesn't dominate the page — the count/
+// warning badges on the header above stay visible either way.
+$('dispatchToggle').onclick=()=>{
+  const open=$('dispatchTableWrap').classList.toggle('hidden')===false;
+  $('dispatchToggle').classList.toggle('open',open);
+  $('dispatchToggleLabel').textContent=open?'Hide table':'Show table';
+};
 // Delegated listener: a cell edit updates the in-memory row directly so
 // the fix is what actually gets submitted, not just displayed.
 $('dispatchTableBody').addEventListener('input',e=>{
@@ -882,7 +902,86 @@ $('dispatchTableBody').addEventListener('input',e=>{
   if(!td)return;
   const i=parseInt(td.closest('tr').dataset.i,10);
   if(dispatchRows[i])dispatchRows[i][td.dataset.f]=td.textContent.trim();
+  renderRebootList();
 });
+
+// ══════ REBOOT / DISK-SLOT PERMISSION REQUEST (derived from dispatchRows) ═
+// "Block" is read off Rack Info the same way report.py's _short_location
+// does: "TESTDC2_B1_G4-K-01" -> "B1" is the 2nd underscore-separated
+// segment. Every server SN is de-duplicated (a server can have more than
+// one dispatch row if several parts on it failed) so the same SN never
+// appears twice in either list.
+function _rebootBlock(rackInfo){
+  const parts=(rackInfo||'').split('_');
+  return parts.length>=2 ? parts[1].trim() : '';
+}
+function buildRebootText(rows){
+  const good=(rows||[]).filter(r=>!r._unparsed && (r.server_sn||'').trim());
+  if(!good.length)return '';
+
+  // Group SNs by block, de-duped, preserving first-appearance order —
+  // both of the block itself and of each SN within its block.
+  const blockOrder=[],blockMap=new Map();
+  good.forEach(r=>{
+    const sn=r.server_sn.trim();
+    const blk=_rebootBlock(r.rack_info);
+    if(!blockMap.has(blk)){blockMap.set(blk,new Set());blockOrder.push(blk)}
+    blockMap.get(blk).add(sn);
+  });
+  const namedBlocks=blockOrder.filter(b=>b);
+
+  const lines=['Hi, please help check reboot permission for these servers,',''];
+  if(namedBlocks.length>1){
+    // Multiple distinct blocks -> separate under a header per block.
+    namedBlocks.forEach(blk=>{
+      lines.push(blk);
+      blockMap.get(blk).forEach(sn=>lines.push(sn));
+      lines.push('');
+    });
+    if(blockMap.has('')){ // rows with no parseable block go last, unheaded
+      blockMap.get('').forEach(sn=>lines.push(sn));
+      lines.push('');
+    }
+  } else {
+    // Only one block (or none detected) -> flat de-duped list, no header.
+    const seen=new Set();
+    good.forEach(r=>{
+      const sn=r.server_sn.trim();
+      if(!seen.has(sn)){seen.add(sn);lines.push(sn)}
+    });
+    lines.push('');
+  }
+
+  // Storage (HDD/SSD/NVMe/...) rows also get a disk-slot confirmation ask,
+  // de-duped the same way, in the order those rows appear in the table.
+  const storageSeen=new Set(),storageList=[];
+  good.forEach(r=>{
+    if(r.category==='Storage'){
+      const sn=r.server_sn.trim();
+      if(!storageSeen.has(sn)){storageSeen.add(sn);storageList.push(sn)}
+    }
+  });
+  if(storageList.length){
+    lines.push('Also, help confirm the disk slot for this server.');
+    storageList.forEach(sn=>lines.push(sn));
+    lines.push('');
+  }
+
+  lines.push('Thank you.');
+  return lines.join('\n');
+}
+function renderRebootList(){
+  const card=$('rebootListCard');
+  const text=buildRebootText(dispatchRows);
+  if(!text){card.classList.add('hidden');$('rebootListBody').textContent='';return}
+  card.classList.remove('hidden');
+  $('rebootListBody').textContent=text;
+}
+$('copyRebootList').onclick=()=>{
+  const text=buildRebootText(dispatchRows);
+  if(!text)return;
+  navigator.clipboard.writeText(text).then(()=>toast('Reboot list copied')).catch(()=>toast('Failed',1));
+};
 
 // ══════ PARSE TICKET (MISSION BRIEFING) ═════════════════════════════════
 $('parseBtn').onclick=async()=>{

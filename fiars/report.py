@@ -127,18 +127,18 @@ def _short_location(location_full: str) -> str:
     return location_full.split("_", 1)[1]
 
 
-def _quick_ref(ticket_number: str, location_full: str) -> str:
-    """`"SHGD0009000016", "TESTDC2_B2_G4-G-06-41"` ->
-    `"SHGD0009000016_B2_G4-G-06-41"`. First line of every report: ticket
-    number + short location, so the block/rack/unit is visible without
+def _quick_ref(server_sn: str, location_full: str) -> str:
+    """`"24X100010", "TESTDC2_B2_G4-G-06-41"` ->
+    `"24X100010_B2_G4-G-06-41"`. First line of every report: server SN
+    + short location, so the block/rack/unit is visible without
     hunting through the raw ticket dump or the Location: field below."""
-    ticket_number = _base_ticket(ticket_number)
+    server_sn = (server_sn or "").strip()
     short_loc = _short_location(location_full)
-    if not ticket_number:
+    if not server_sn:
         return short_loc
     if not short_loc:
-        return ticket_number
-    return f"{ticket_number}_{short_loc}"
+        return server_sn
+    return f"{server_sn}_{short_loc}"
 
 
 def _titled(kind: str, slot: str = "") -> str:
@@ -175,7 +175,7 @@ def build_report(draft: dict[str, Any]) -> str:
     slot = draft.get("slot", "")
 
     lines = [
-        _quick_ref(draft.get("ticket_number", ""), draft.get("location", "")),
+        _quick_ref(draft.get("server_sn", ""), draft.get("location", "")),
         "",
         f"Date: {draft.get('date','')}",
         f"Ticket Number: {draft.get('ticket_number','')}",
@@ -257,7 +257,7 @@ def build_combined_report(drafts: list[dict[str, Any]]) -> str:
 
         head = group[0]
         lines = [
-            _quick_ref(head.get("ticket_number", ""), head.get("location", "")),
+            _quick_ref(head.get("server_sn", ""), head.get("location", "")),
             "",
             f"Date: {head.get('date','')}",
             f"Ticket Number: {_base_ticket(head.get('ticket_number',''))}",

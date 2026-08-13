@@ -246,7 +246,7 @@ def test_two_tags_blocks_same_ticket_combine_into_one_report():
 def test_combined_report_has_single_quick_reference_line():
     # The combined (multi-block, same ticket+server) report gets exactly
     # ONE quick-reference first line, not one per block, taken from the
-    # first block's ticket number + location.
+    # first block's server SN + location.
     jobs = parse_multi_ticket(GPU_TWO_BLOCK_TICKET, GPU_TICKET_NUMBER)
     rows = parse_dispatch_table(DISPATCH_ROW_GPU_SINGLE)
     merge_dispatch(jobs, rows)
@@ -254,8 +254,8 @@ def test_combined_report_has_single_quick_reference_line():
     report = build_combined_report(drafts)
 
     lines = report.split("\n")
-    assert lines[0].startswith("SHGD0009000005")
-    assert lines[0].count("SHGD0009000005") == 1
+    assert lines[0].startswith("2KX100003")
+    assert lines[0].count("2KX100003") == 1
     assert lines[1] == ""
     assert lines[2] == f"Date: {drafts[0]['date']}"
 
