@@ -7,3 +7,8 @@ __pycache__/
 *.pyc
 .venv/
 .DS_Store
+
+# Vendor-sourced KB content (see kb_content/README.md) — kept local, not
+# committed, since it's derived from vendor-internal documentation.
+kb_content/*.json
+config.json
