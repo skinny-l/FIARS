@@ -8,6 +8,7 @@ from fiars.report import build_report, default_draft
 from tests.sample_tickets import (
     HDD_TICKET, HDD_TICKET_NUMBER,
     NVME_LABELED_HDD_TICKET, NVME_LABELED_HDD_TICKET_NUMBER,
+    BOILERPLATE_POSITION_TICKET, BOILERPLATE_POSITION_TICKET_NUMBER,
 )
 
 def test_parse_real_ticket():
@@ -126,3 +127,16 @@ if __name__ == "__main__":
     for name, fn in sorted(globals().items()):
         if name.startswith("test_") and callable(fn):
             fn(); print("PASS", name)
+
+def test_part_position_strips_vendor_boilerplate_note():
+    # Regression: 部件位置/part_position on this ticket type always carries
+    # a fixed Chinese instructional note glued onto the value with no
+    # separator, e.g. "P1_C1_D0 （如果报修为硬盘故障，...）". Only the real
+    # slot value should survive parsing and reach the report's slot title.
+    job = parse_ticket(BOILERPLATE_POSITION_TICKET, BOILERPLATE_POSITION_TICKET_NUMBER)
+    assert job["part"]["position"] == "P1_C1_D0"
+
+    draft = default_draft(job)
+    r = build_report(draft)
+    assert "如果报修为硬盘故障" not in r
+    assert "Old Memory (slot P1_C1_D0)" in r

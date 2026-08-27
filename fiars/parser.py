@@ -19,6 +19,29 @@ from typing import Any
 _COLON = re.compile(r"[:：]")
 _URL = re.compile(r"https?://[^\s<>]+")
 
+# Some vendor ticket fields always carry a fixed Chinese instructional note
+# glued directly onto the value on the same line, with no separator — e.g.
+# `部件位置/part_position:P1_C1_D0 （如果报修为硬盘故障，此位置信息不做参考，...）`.
+# The note is boilerplate the vendor template always includes on that line
+# (present even when a real value like "P1_C1_D0" precedes it), not
+# engineer-entered data, so it must be stripped or it ends up baked into the
+# report's slot title, e.g. "Old RAM (slot P1_C1_D0 （如果报修为硬盘故障...）)".
+# Keyed by canonical field key -> the boilerplate's distinctive opening
+# substring; everything from that point onward is dropped.
+_FIELD_BOILERPLATE = {
+    "part_position": "（如果报修为硬盘故障",
+    "part_position_bmc": "（严格按照近期发布的",
+}
+
+
+def _strip_boilerplate(ckey: str, value: str) -> str:
+    marker = _FIELD_BOILERPLATE.get(ckey)
+    if marker:
+        idx = value.find(marker)
+        if idx != -1:
+            value = value[:idx].strip()
+    return value
+
 # Known english field keys. Used to (a) recognise fields and (b) split lines
 # that pack two fields together, e.g. `server_model：X server_product：Y`.
 KNOWN_KEYS = {
@@ -153,7 +176,7 @@ def parse_ticket(raw: str, ticket_number: str = "") -> dict[str, Any]:
             key, value = kv
             ckey = _canon_key(key)
             if ckey:
-                fields[ckey] = value
+                fields[ckey] = _strip_boilerplate(ckey, value)
 
     g = fields.get  # shorthand
 

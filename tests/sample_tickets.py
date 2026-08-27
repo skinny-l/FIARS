@@ -352,3 +352,32 @@ fault_log_dir:None
 """
 
 NVME_LABELED_HDD_TICKET_NUMBER = "SHGD0009000006"
+
+# Regression fixture: the vendor ticket template glues a fixed Chinese
+# instructional note directly onto the 部件位置/part_position value with no
+# separator, e.g. "P1_C1_D0 （如果报修为硬盘故障，...）". The note must be
+# stripped so it doesn't end up baked into the report's slot title.
+BOILERPLATE_POSITION_TICKET = """工单标签/tags：
+60天内重复报修次数/fault_60day_rt：0
+主机业务属性/idc_kind：核心机房
+Priority：normal
+server_model：G220B-1G1BxxL server_product：SG44O0-3Z4186-S-WW
+服务器SN/Server SN：21X100017
+机柜位置/Location：TESTDC2_B1_G1-V-10
+起始U位/ unit_no: 21
+服务器厂商/manufacturer:Maginfra
+部件位置/part_position:P1_C1_D0 （如果报修为硬盘故障，此位置信息不做参考，请以下方“部件位置(BMC)”为准）
+部件厂商/part_manufacturer:Samsung
+固件版本/firmware_version:
+部件SN/part_sn:S000002
+部件容量/part_size:64GB
+部件类型/part_type:Memory
+部件PN/part_pn:M321R8GA0EB2-CWM
+fault_log_dir:None
+故障明细/Fault_Detail:Memory Device Disabled
+故障类型/fault_type:Memory
+故障描述/Fault Description:SensorName:P1_C1_D0_Status;Status:0x1080
+30天内重复报修次数/fault_30day_rt：0
+"""
+
+BOILERPLATE_POSITION_TICKET_NUMBER = "SHGD0009000017"
