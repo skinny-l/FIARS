@@ -186,6 +186,18 @@ th:hover{color:var(--ink)}
 .dp-sig .row{margin-bottom:10px;display:flex;gap:18px;flex-wrap:wrap}
 .dp-sig .row span.lbl{font-weight:700;margin-right:6px;color:var(--ink)}
 .dp-sig .row span.line{display:inline-block;border-bottom:1px solid var(--ln);min-width:160px;padding-bottom:1px;color:var(--ink)}
+.cc-title{text-align:center;font-weight:700;font-size:15px;margin:0 0 8px 0;color:var(--ink)}
+.cc-step-hdr{font-weight:700;font-size:12.5px;margin:14px 0 3px 0;color:var(--ink)}
+.cc-intro{font-size:11px;margin:0 0 6px 0;color:var(--ink)}
+.cc-sub-hdr{font-weight:700;font-size:11.5px;margin:8px 0 4px 0;color:var(--ink)}
+.cc-item{display:flex;align-items:flex-start;gap:7px;font-size:11px;line-height:1.45;margin-bottom:5px;color:var(--ink)}
+.cc-item input[type=checkbox]{margin-top:3px;width:13px;height:13px;accent-color:var(--ac);cursor:pointer;flex-shrink:0}
+.cc-item b{font-weight:700}
+.cc-ack{font-size:11px;line-height:1.5;margin-top:10px;padding:8px 9px;border:1px solid var(--ln);border-radius:var(--r-lg);color:var(--ink)}
+.cc-sig{margin-top:12px;font-size:11px}
+.cc-sig .row{margin-bottom:12px;display:flex;gap:18px;flex-wrap:wrap}
+.cc-sig .row span.lbl{font-weight:700;margin-right:6px;color:var(--ink)}
+.cc-sig .row span.line{display:inline-block;border-bottom:1px solid var(--ln);min-width:200px;padding-bottom:1px;color:var(--ink)}
 
 /* Dispatch table preview — live, editable mirror of the pasted dispatch
    table, so a column mismatch is visible (and fixable in place) before
@@ -207,6 +219,7 @@ th:hover{color:var(--ink)}
   <div class="tab on" data-t="parse">Parse Ticket</div>
   <div class="tab" data-t="checklist">Checklist</div>
   <div class="tab" data-t="dualperson">Dual-Person Ops</div>
+  <div class="tab" data-t="compliance">Compliance Checklist</div>
   <div class="tab" data-t="search">Knowledge Base</div>
   <div class="tab" data-t="add">Quick Add</div>
   <div class="tab" data-t="cases">Case History</div>
@@ -258,7 +271,7 @@ th:hover{color:var(--ink)}
   <div id="parseOut" class="hidden">
     <!-- REPORT — right below input, no scrolling past detail to reach it -->
     <div class="card report-card" id="reportCard">
-      <h2>Report template <button class="gh sm" id="copyReport" style="float:right">Copy for OneNote</button> <button class="gh sm" id="dlChecklist" style="float:right">Download Checklist</button> <button class="gh sm" id="dlDualPerson" style="float:right">Download Dual-Person Form</button></h2>
+      <h2>Report template <button class="gh sm" id="copyReport" style="float:right">Copy for OneNote</button> <button class="gh sm" id="dlChecklist" style="float:right">Download Checklist</button> <button class="gh sm" id="dlDualPerson" style="float:right">Download Dual-Person Form</button> <button class="gh sm" id="dlCompliance" style="float:right">Download Compliance Checklist</button></h2>
       <div id="pReport" class="pre"></div>
     </div>
 
@@ -752,6 +765,43 @@ I have read and fully understand all above contents and will comply strictly.</d
         <span class="line" id="dpSigSup" contenteditable="true">&nbsp;</span>
       </div>
       <div class="row"><span class="lbl">Signature Date :</span><span class="line" id="dpDate" contenteditable="true">&nbsp;</span></div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ COMPLIANCE CHECKLIST ═══ -->
+<div class="pane" id="p-compliance">
+  <div class="card">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
+      <h2 style="margin:0">Daily On-Site Safety &amp; Compliance Checklist</h2>
+      <div><button class="gh sm" id="ccAutoFill">Auto-fill from ticket</button> <button class="sm" id="ccDownload">Download PDF</button></div>
+    </div>
+
+    <div class="cc-title">Daily On-Site Safety &amp; Compliance Checklist</div>
+
+    <div class="cc-step-hdr">Step 1: Pre-Work &amp; 6-Element Machine Positioning Verification</div>
+    <div class="cc-intro">Before touching any equipment, verify and check off every item with ByteDance DCT personnel:</div>
+    <div id="ccStep1"></div>
+
+    <div class="cc-step-hdr">Step 2: Critical Red Lines &amp; The Six Bans</div>
+    <div class="cc-intro">Verify and strictly follow all mandatory regulations throughout the service:</div>
+    <div class="cc-sub-hdr">The &ldquo;Six Bans&rdquo; Compliance Checklist</div>
+    <div id="ccBans"></div>
+    <div class="cc-sub-hdr">Specific Operational Restrictions</div>
+    <div id="ccRestrictions"></div>
+
+    <div class="cc-step-hdr">Step 3: Post-Work Verification</div>
+    <div id="ccStep3"></div>
+
+    <div class="cc-step-hdr">Step 4: Acknowledgment &amp; Sign-Off</div>
+    <div class="cc-ack">I confirm that I have verified the 6 elements above, operated strictly within the scope of the work order, and adhered to all ByteDance Data Center &amp; Fault Repair Red Line Regulations. I accept full accountability and disciplinary consequences for any unauthorized actions or non-compliance.</div>
+
+    <div class="cc-sig">
+      <div class="row">
+        <span class="lbl">Engineer Signature:</span>
+        <span class="line" id="ccSig" contenteditable="true">ENGINEER</span>
+      </div>
+      <div class="row"><span class="lbl">Date :</span><span class="line" id="ccDate" contenteditable="true">&nbsp;</span></div>
     </div>
   </div>
 </div>
@@ -1827,6 +1877,220 @@ $('dpDownload').onclick=()=>{
       ||new Date().toLocaleDateString('en-GB',{day:'numeric',month:'long',year:'numeric'}),
   });
   toast('Dual-Person Form PDF downloaded');
+};
+
+// ══════ COMPLIANCE CHECKLIST ═══════════════════════════════════════════
+// Daily On-Site Safety & Compliance Checklist. Unlike Checklist/Dual-Person,
+// this source form isn't ticket-specific (no ticket/SN fields on it at all)
+// -- it's a daily attestation, always fully compliant by default, that just
+// needs whoever's on-site today to sign and date it. Same two-entry-point
+// pattern as the other two forms otherwise.
+
+// Plain single-line items, no bold label (Step 1).
+const CC_STEP1=[
+  'Cabinet Number',
+  'U Position',
+  'Server SN (Verify bit-by-bit)',
+  'UID Light Status',
+  'Maintenance Label Applied (Front & Rear)',
+  'Byte Fixed Asset Number (Verify bit-by-bit)',
+];
+// Bold "Label: " prefix + description (Step 2 - Six Bans).
+const CC_BANS=[
+  {label:'Ban 1 (No Unauthorized Ops)',desc:'Strictly forbidden to operate customer equipment without explicit customer authorization.'},
+  {label:'Ban 2 (No Off-Hours Ops)',desc:'Strictly forbidden to operate (including remote operations) repair or running equipment during unauthorized hours.'},
+  {label:'Ban 3 (No Restricted Tools)',desc:'Strictly forbidden to use non-approved software versions or restricted tools.'},
+  {label:'Ban 4 (No Blind Operations)',desc:'Strictly forbidden to operate equipment blindly without an approved plan or review.'},
+  {label:'Ban 5 (No Unverified Departure)',desc:'Strictly forbidden to leave the site without business verification and customer confirmation.'},
+  {label:'Ban 6 (No Concealment/Delay)',desc:'Strictly forbidden to conceal or delay notifying on-site unexpected accidents or errors.'},
+];
+// Bold "Label: " prefix + description (Step 2 - Specific Operational Restrictions).
+const CC_RESTRICTIONS=[
+  {label:'Three Authorizations',desc:'Work order present, technical dispatch plan reviewed, and explicit customer confirmation received before any action.'},
+  {label:'Strictly Prohibited Items',desc:'No eating, drinking, smoking, open flames, or hazardous/corrosive materials inside the DC.'},
+  {label:'Zero Self-Power/Cable Operations',desc:'Engineers are strictly prohibited from switching power (ON/OFF), restarting (In-OS/BMC/Physical), or plugging/unplugging any cables (power, network, fiber, USB/U-disk). All cable and power actions must be executed by ByteDance DCT personnel.'},
+  {label:'Cable Operations',desc:'Engineers must NEVER plug or unplug any server cables (power cords, network cables, optical fiber, liquid-cooling quick connectors, USB drives, or keyboards/displays). Plugging and unplugging the hard disk and all cabling must be done by DCT.'},
+  {label:'Scope & Safety',desc:'Touch only the authorized equipment listed on the work order. Wear anti-static gear (ESD wrist strap). Use server-lifts/ladders/stool for high-level equipment (>= 30U). Minimum two-person operation for equipment loading/unloading.'},
+  {label:'Facility Integrity',desc:'No PDU powering for temporary devices/laptops (mains wall power only). No taking replaced storage media off-site. No direct server-to-server cabling. No eating, drinking, smoking, or bringing bags/dangerous items into the DC.'},
+  {label:'Dress & Behavior',desc:'Proper attire and closed shoes are mandatory (no slippers). No leaning on cabinets, playing, physical conflicts, or using devices for games/entertainment.'},
+  {label:'Incident Reporting',desc:'Any unexpected accident or error must be reported immediately\u2014concealment or delay is strictly prohibited.'},
+  {label:'DCT Power Action Supervision',desc:'Engineers must actively watch and check that DCT personnel operate the correct host machine during power off or cable plugging/unplugging.'},
+  {label:'No Cabinet PDU Usage',desc:'Temporary electronic devices (laptops, test meters, mobile phones, lighting, monitors) must ONLY use wall mains power. Using cabinet PDUs is strictly prohibited.'},
+  {label:'Confidentiality',desc:'Strict adherence to DC regulations; leakage of data center or vendor technical documents is prohibited.'},
+];
+// Bold "Label: " prefix + description (Step 3).
+const CC_STEP3=[
+  {label:'Business Verification',desc:'Business/system verification completed and confirmed by ByteDance DCT prior to site departure.'},
+  {label:'Ticket Closure Rules',desc:'All replaced spare parts accounted for (tickets with SN/PN/slot info must not be closed without replacement unless explicitly approved by ByteDance).'},
+  {label:'Storage Media Control',desc:'Replaced storage media (hard drives/SSDs) must NEVER be removed from the Data Hall. All tickets detailing SN, PN, and slot positions must not be closed without actual spare part replacement unless approved by ByteDance.'},
+];
+
+function ccRenderItems(containerId,items,namePrefix){
+  const rows=items.map((it,i)=>{
+    const n=i+1;
+    const text=typeof it==='string' ? it : `<b>${it.label}:</b> ${it.desc}`;
+    return `<label class="cc-item"><input type="checkbox" data-cc="${namePrefix}${n}" checked> <span>${text}</span></label>`;
+  });
+  $(containerId).innerHTML=rows.join('');
+}
+ccRenderItems('ccStep1',CC_STEP1,'s1_');
+ccRenderItems('ccBans',CC_BANS,'ban_');
+ccRenderItems('ccRestrictions',CC_RESTRICTIONS,'r_');
+ccRenderItems('ccStep3',CC_STEP3,'s3_');
+
+$('ccDate').textContent=new Date().toLocaleDateString('en-US');
+
+// Splits a dispatch-table "engineer" cell into ALL on-site names (unlike
+// splitDualPersonEngineer's Engineer/Safety-Supervisor pair above) -- this
+// form has a single "Engineer Signature" line, and per King every name that
+// was on-site signs it, e.g. "Aziz | Fahrul" -> "Aziz Fahrul".
+function splitAllDispatchEngineers(raw){
+  if(!raw) return [];
+  const cleaned=raw.replace(/\b(deliver onsite|onsite troubleshoot|priority)\b/gi,'').trim();
+  return cleaned.split('|').map(s=>s.trim()).filter(Boolean);
+}
+
+function ccAllNamesFromJob(job){
+  const names=splitAllDispatchEngineers(job&&job.dispatch_engineer);
+  if(names.length) return names.join(' ');
+  return $('cEng').value||'';
+}
+
+function ccCheckboxState(fromDOM){
+  // Step1(6) + Bans(6) + Restrictions(11) + Step3(3) = 26 items total.
+  const state={};
+  [['s1_',CC_STEP1.length],['ban_',CC_BANS.length],['r_',CC_RESTRICTIONS.length],['s3_',CC_STEP3.length]]
+    .forEach(([prefix,count])=>{
+      for(let i=1;i<=count;i++){
+        const key=prefix+i;
+        if(fromDOM){
+          const el=document.querySelector(`[data-cc="${key}"]`);
+          state[key]=el?el.checked:true;
+        } else {
+          state[key]=true;
+        }
+      }
+    });
+  return state;
+}
+
+// Draws a single checkbox glyph, vertically aligned to an item's first text line.
+function ccBox(doc,x,textBaselineY,checked){
+  const s=2.8;
+  const by=textBaselineY-s+0.8;
+  doc.setDrawColor(0); doc.setLineWidth(0.15);
+  doc.rect(x,by,s,s);
+  if(checked){
+    doc.setLineWidth(0.3);
+    doc.line(x+0.4,by+s*0.55,x+s*0.42,by+s*0.92);
+    doc.line(x+s*0.42,by+s*0.92,x+s-0.3,by+s*0.12);
+    doc.setLineWidth(0.15);
+  }
+}
+
+// Word-by-word wrap that mixes a bold "label: " prefix with a normal-weight
+// description in the same flowing paragraph, flush-wrapping back to x.
+function ccWrapDraw(doc,x,y,maxW,label,desc,fontSize,lineH){
+  doc.setFontSize(fontSize);
+  let curX=x,curY=y;
+  const pieces=[];
+  if(label){
+    const words=label.split(' ');
+    words.forEach((w,i)=>pieces.push({t:w+(i===words.length-1?': ':' '),bold:true}));
+  }
+  desc.split(' ').forEach(w=>pieces.push({t:w+' ',bold:false}));
+  pieces.forEach(p=>{
+    doc.setFont(undefined,p.bold?'bold':'normal');
+    const w=doc.getTextWidth(p.t);
+    if(curX+w>x+maxW){curX=x;curY+=lineH}
+    doc.text(p.t,curX,curY);
+    curX+=w;
+  });
+  doc.setFont(undefined,'normal');
+  return curY;
+}
+
+function ccDrawItem(doc,x,y,maxW,label,desc,checked){
+  const boxW=4.2, fontSize=8, lineH=3.5, marginBottom=283;
+  doc.setFont(undefined,'normal'); doc.setFontSize(fontSize);
+  const full=(label?label+': ':'')+desc;
+  const estLines=doc.splitTextToSize(full,maxW-boxW).length;
+  if(y+estLines*lineH>marginBottom){doc.addPage();y=14}
+  ccBox(doc,x,y,checked);
+  const endY=ccWrapDraw(doc,x+boxW,y,maxW-boxW,label,desc,fontSize,lineH);
+  return endY+lineH+1.2;
+}
+
+function buildCompliancePDF(fields){
+  // fields: {items:{key:bool,...}, engineer, dateStr}
+  const doc=new jspdf.jsPDF({orientation:'portrait',unit:'mm',format:'a4'});
+  const pageW=210, marginX=12, contentW=pageW-marginX*2;
+  let y=14;
+
+  doc.setFont(undefined,'bold'); doc.setFontSize(15);
+  doc.text('Daily On-Site Safety & Compliance Checklist',pageW/2,y,{align:'center'});
+  y+=10;
+
+  const stepHdr=(t)=>{doc.setFont(undefined,'bold'); doc.setFontSize(11); doc.text(t,marginX,y); y+=5.5;};
+  const introLine=(t)=>{doc.setFont(undefined,'normal'); doc.setFontSize(9); doc.text(t,marginX,y); y+=5.5;};
+  const subHdr=(t)=>{doc.setFont(undefined,'bold'); doc.setFontSize(9.5); doc.text(t,marginX,y); y+=5;};
+
+  stepHdr('Step 1: Pre-Work & 6-Element Machine Positioning Verification');
+  introLine('Before touching any equipment, verify and check off every item with ByteDance DCT personnel:');
+  CC_STEP1.forEach((it,i)=>{ y=ccDrawItem(doc,marginX,y,contentW,null,it,fields.items['s1_'+(i+1)]); });
+
+  y+=2; stepHdr('Step 2: Critical Red Lines & The Six Bans');
+  introLine('Verify and strictly follow all mandatory regulations throughout the service:');
+  subHdr('The "Six Bans" Compliance Checklist');
+  CC_BANS.forEach((it,i)=>{ y=ccDrawItem(doc,marginX,y,contentW,it.label,it.desc,fields.items['ban_'+(i+1)]); });
+  subHdr('Specific Operational Restrictions');
+  CC_RESTRICTIONS.forEach((it,i)=>{ y=ccDrawItem(doc,marginX,y,contentW,it.label,it.desc,fields.items['r_'+(i+1)]); });
+
+  y+=2; stepHdr('Step 3: Post-Work Verification');
+  CC_STEP3.forEach((it,i)=>{ y=ccDrawItem(doc,marginX,y,contentW,it.label,it.desc,fields.items['s3_'+(i+1)]); });
+
+  y+=2; stepHdr('Step 4: Acknowledgment & Sign-Off');
+  doc.setFont(undefined,'normal'); doc.setFontSize(9);
+  const ackText='I confirm that I have verified the 6 elements above, operated strictly within the scope of the work order, and adhered to all ByteDance Data Center & Fault Repair Red Line Regulations. I accept full accountability and disciplinary consequences for any unauthorized actions or non-compliance.';
+  const ackLines=doc.splitTextToSize(ackText,contentW);
+  if(y+ackLines.length*4.2>283){doc.addPage();y=14}
+  doc.text(ackLines,marginX,y); y+=ackLines.length*4.2+6;
+
+  if(y>270){doc.addPage();y=14}
+  doc.setFontSize(9);
+  doc.text('Engineer Signature:',marginX,y);
+  doc.text(fields.engineer||'',marginX+38,y);
+  doc.line(marginX+36,y+1,marginX+120,y+1);
+  doc.text('Date:',marginX+130,y);
+  doc.text(fields.dateStr||'',marginX+142,y);
+  doc.line(marginX+140,y+1,marginX+186,y+1);
+
+  const safe=s=>(s||'unknown').replace(/[\\/:*?"<>|]/g,'-');
+  const dateSafe=(fields.dateStr||'').replace(/\//g,'-');
+  doc.save(`compliance-checklist_${safe(fields.engineer)}_${dateSafe||'undated'}.pdf`);
+}
+
+$('dlCompliance').onclick=()=>{
+  if(!S.job){toast('Parse a ticket first, then click Download Compliance Checklist',1);return}
+  const engineer=ccAllNamesFromJob(S.job)||'ENGINEER';
+  const dateStr=new Date().toLocaleDateString('en-US');
+  buildCompliancePDF({items:ccCheckboxState(false),engineer,dateStr});
+  toast('Compliance Checklist PDF downloaded');
+};
+
+$('ccAutoFill').onclick=()=>{
+  if(!S.job){toast('Parse a ticket first, then click Auto-fill',1);return}
+  document.querySelectorAll('[data-cc]').forEach(el=>el.checked=true);
+  $('ccSig').textContent=ccAllNamesFromJob(S.job)||'ENGINEER';
+  $('ccDate').textContent=new Date().toLocaleDateString('en-US');
+  toast('Compliance Checklist auto-filled from parsed ticket');
+};
+
+$('ccDownload').onclick=()=>{
+  const engineer=$('ccSig').textContent.trim()||'ENGINEER';
+  const dateStr=$('ccDate').textContent.trim()||new Date().toLocaleDateString('en-US');
+  buildCompliancePDF({items:ccCheckboxState(true),engineer,dateStr});
+  toast('Compliance Checklist PDF downloaded');
 };
 
 // Init
