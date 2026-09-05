@@ -903,6 +903,7 @@ $('copyTickets').onclick=()=>{
 const DTP_FIELDS=["date","ticket_no","case_id","server_sn","rack_info",
   "faulty_part","old_pn","new_pn","maker","model","engineer"];
 let dispatchRows=[];
+let dispatchShiftEngineers=[];
 let _dtpTimer=null;
 function renderDispatchTable(rows){
   const card=$('dispatchTableCard');
@@ -926,10 +927,11 @@ function renderDispatchTable(rows){
 }
 async function refreshDispatchTable(){
   const raw=$('pDispatch').value;
-  if(!raw.trim()){dispatchRows=[];renderDispatchTable([]);renderRebootList();return}
+  if(!raw.trim()){dispatchRows=[];dispatchShiftEngineers=[];renderDispatchTable([]);renderRebootList();return}
   const r=await api('/api/dispatch_preview',J({raw}));
   if(r.error||!r.rows)return;
   dispatchRows=r.rows;
+  dispatchShiftEngineers=r.shift_engineers||[];
   renderDispatchTable(dispatchRows);
   renderRebootList();
 }
@@ -1951,11 +1953,18 @@ function splitAllDispatchEngineers(raw){
 }
 
 function ccAllNames(){
-  // The Compliance Checklist is a per-session/group attestation, not tied to
-  // one ticket -- pull from every row of the pasted dispatch table (each row
-  // has its own "engineer" cell, itself possibly "Aziz | Fahrul") so all
-  // names across the whole batch end up on the signature line, not just
-  // whichever name happens to sit on S.job's one matched row.
+  // The Compliance Checklist covers the whole shift's on-site team, and the
+  // authoritative source for that is the banner line pasted above the
+  // dispatch table header (e.g. "Fahrul | Aziz | Hariz - BDC02 @ 9:30 am"),
+  // NOT the per-row Engineer cells -- those can carry a different, older,
+  // or partial name list (a reopened ticket's original team, or just
+  // whichever one of the group got credited for that specific part swap).
+  // Mixing row names in on top of the banner is how unrelated names like
+  // "Zul | Xianyao" from an old row ended up on today's checklist.
+  if(dispatchShiftEngineers&&dispatchShiftEngineers.length) return dispatchShiftEngineers.join(' ');
+
+  // No banner line was pasted (or it didn't parse) -- fall back to the
+  // union of whatever names appear across the dispatch rows.
   const seen=new Set(), names=[];
   (typeof dispatchRows!=='undefined'?dispatchRows:[]).forEach(row=>{
     if(!row||row._unparsed) return;
@@ -2083,7 +2092,7 @@ function buildCompliancePDF(fields){
 
   const safe=s=>(s||'unknown').replace(/[\\/:*?"<>|]/g,'-');
   const dateSafe=(fields.dateStr||'').replace(/\//g,'-');
-  doc.save(`compliance-checklist_${safe(fields.engineer)}_${dateSafe||'undated'}.pdf`);
+  doc.save(`compliance_checklist_${safe(fields.engineer)}_${dateSafe||'undated'}.pdf`);
 }
 
 $('dlCompliance').onclick=()=>{

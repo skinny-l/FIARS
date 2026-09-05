@@ -3,7 +3,7 @@ import os, sys
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from fiars.parser import parse_ticket, parse_multi_ticket, infer_category
-from fiars.parser_table import parse_dispatch_table, merge_dispatch
+from fiars.parser_table import parse_dispatch_table, merge_dispatch, extract_shift_banner
 from fiars.report import default_draft, build_report, build_combined_report
 from tests.sample_tickets import (
     HDD_TICKET, HDD_TICKET_NUMBER,
@@ -578,6 +578,49 @@ def test_paragraph_separated_row_with_genuinely_empty_cell():
     assert row["case_id"] == ""
     assert row["server_sn"] == "2TXA00013"
     assert row["old_pn"] == "V0233D30000000ZY"
+
+
+def test_shift_banner_pipe_separated_with_location_time():
+    # King's real paste: banner line has 3 names, en-dash + location/time
+    # trailer, and the rows below carry different (and inconsistent) names
+    # of their own -- the banner is who's on-site, not the row cells.
+    raw = (
+        "Fahrul | Aziz | Hariz \u2013 BDC02 @ 9:30 am\n"
+        "Date\nTicket No#\nCase ID#\nServer SN\nRack Info\nFaulty Part\n"
+        "OLD PN\nNEW PN\nMaker\nModel\nEngineer\n"
+        "4/9/2026\nSHGD0002080071\nSHSJ0004268013\n21D739264\n"
+        "MYJHBBDC02_B1_G2-R-08-13\nMemory\nV0040NM0000000ZY\n"
+        "V0040NM0000000ZY borrow\nQ\nQC6468D7-SG\nFahrul | Aziz Deliver onsite"
+    )
+    assert extract_shift_banner(raw) == ["Fahrul", "Aziz", "Hariz"]
+
+
+def test_shift_banner_plain_hyphen_separator():
+    raw = "Taylor | Riley | Alex - BDC02 @ 9:30 am\nDate\nTicket No#\n"
+    assert extract_shift_banner(raw) == ["Taylor", "Riley", "Alex"]
+
+
+def test_shift_banner_absent_no_header():
+    # Paste starts straight at row 1 (no header, no banner) -- must not
+    # mistake the date row for a name list.
+    raw = "4/9/2026\nSHGD0002080071\nSHSJ0004268013"
+    assert extract_shift_banner(raw) == []
+
+
+def test_shift_banner_absent_header_first():
+    # Header line is the very first line -- no preamble at all.
+    raw = "Date\nTicket No#\nCase ID#\n4/9/2026\n"
+    assert extract_shift_banner(raw) == []
+
+
+def test_shift_banner_dedupes_case_insensitive():
+    raw = "Aziz | AZIZ | Hariz - BDC02\nDate\n"
+    assert extract_shift_banner(raw) == ["Aziz", "Hariz"]
+
+
+def test_shift_banner_single_name_no_pipe():
+    raw = "Aziz - solo shift\nDate\n"
+    assert extract_shift_banner(raw) == ["Aziz"]
 
 
 if __name__ == "__main__":

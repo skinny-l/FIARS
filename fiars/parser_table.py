@@ -50,6 +50,58 @@ HEADERS = [
 
 _DATE_RE = re.compile(r"^\d{1,2}/\d{1,2}/\d{4}\b")
 
+# Splits a shift-banner line's name list off its trailing location/time,
+# e.g. "Fahrul | Aziz | Hariz - BDC02 @ 9:30 am" -> stop before " - ".
+# Requires whitespace on both sides so it never fires on a hyphen inside
+# a name itself (a bare "-" with no surrounding spaces is left alone).
+_BANNER_SPLIT_RE = re.compile(r"\s[-\u2013\u2014]\s")
+
+
+def extract_shift_banner(raw: str) -> list[str]:
+    """
+    Pulls the whole on-site team roster from an optional preamble line
+    before the dispatch table proper, e.g.
+    "Fahrul | Aziz | Hariz - BDC02 @ 9:30 am" -> ["Fahrul", "Aziz", "Hariz"].
+
+    This is who's on-site for the *whole shift*, not any one row's Engineer
+    cell -- a row's Engineer can (and does) carry a different, older, or
+    partial name list, e.g. a prior date's team on a ticket that's been
+    reopened, or just one of the two/three people who happened to be
+    credited for that specific part swap. The Compliance Checklist covers
+    everyone on-site for the day, so it reads the banner, not the rows.
+
+    Returns [] when there's no such banner (paste starts straight at the
+    header line or at row 1), so callers know to fall back to a different
+    name source rather than mistaking a data row for a name list.
+    """
+    lines = [ln.strip() for ln in raw.splitlines()]
+    while lines and not lines[0]:
+        lines.pop(0)
+    if not lines:
+        return []
+
+    try:
+        header_idx = next(i for i, ln in enumerate(lines) if ln.lower() == "date")
+        preamble = lines[:header_idx]
+    except StopIteration:
+        if _DATE_RE.match(lines[0]):
+            return []  # paste starts directly at row 1 -- no banner present
+        first_row = next((i for i, ln in enumerate(lines) if _DATE_RE.match(ln)), len(lines))
+        preamble = lines[:first_row]
+
+    names: list[str] = []
+    seen: set[str] = set()
+    for line in preamble:
+        if not line:
+            continue
+        name_part = _BANNER_SPLIT_RE.split(line, maxsplit=1)[0]
+        for n in name_part.split("|"):
+            n = n.strip()
+            if n and n.lower() not in seen:
+                seen.add(n.lower())
+                names.append(n)
+    return names
+
 
 def parse_dispatch_table(raw: str) -> list[dict[str, Any]]:
     """

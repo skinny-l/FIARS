@@ -71,7 +71,18 @@ def _explode_inline(line: str) -> list[str]:
 
 
 def _split_kv(line: str):
-    """Return (key, value) for a line, or None if it has no colon."""
+    """Return (key, value) for a line, or None if it has no separator.
+
+    Some vendor ticket exports (e.g. a table copy-pasted from a browser)
+    use a literal tab between the `中文/English Key` label and its value
+    instead of a colon — there is no colon anywhere on the line at all.
+    Tab takes priority when present, since a colon-based split would
+    either miss the field entirely or, worse, mis-split on a colon that
+    happens to appear inside the *value* (e.g. an IPv6 address).
+    """
+    if "\t" in line:
+        key, _, value = line.partition("\t")
+        return key.strip(), value.strip()
     m = _COLON.search(line)
     if not m:
         return None
@@ -80,11 +91,30 @@ def _split_kv(line: str):
     return key, value
 
 
+# Some vendor templates label a field in English differently from the
+# snake_case name used internally (and in other vendors' templates) for
+# the same concept. Map those after normalisation so both spellings land
+# on the same canonical key.
+_KEY_ALIASES = {
+    "ip": "server_ip",
+    "product_manufacturer": "manufacturer",       # server vendor, e.g. Inspur
+    "server_suite": "server_model",               # short model code
+    "suite_name": "server_product",                # long SKU code
+    "asset_number": "asset_no",
+    "part_capacity": "part_size",
+    "number_of_repairs_in_past_30_days": "fault_30day_rt",
+    "number_of_repairs_in_past_60_days": "fault_60day_rt",
+}
+
+
 def _canon_key(key: str) -> str:
-    """`起始U位/ unit_no` -> `unit_no`; `Priority` -> `priority`."""
+    """`起始U位/ unit_no` -> `unit_no`; `Priority` -> `priority`;
+    `Fault Type` -> `fault_type` (spaced English labels get underscored
+    so they line up with the snake_case keys used elsewhere)."""
     if "/" in key:
         key = key.split("/")[-1]
-    return key.strip().lower()
+    key = re.sub(r"\s+", "_", key.strip().lower())
+    return _KEY_ALIASES.get(key, key)
 
 
 # fault_type / part_type -> coarse category used by the similarity engine.
@@ -163,6 +193,10 @@ def parse_ticket(raw: str, ticket_number: str = "") -> dict[str, Any]:
             continue
         if line.lower().startswith("from") and _URL.search(line):
             url = _URL.search(line).group(0)
+            continue
+        if line.startswith("TikTok Inc Server Fault Report"):
+            # Block-boundary banner, not a real field — skip so it doesn't
+            # land in `fields` as noise.
             continue
         for chunk in _explode_inline(line):
             kv = _split_kv(chunk)
@@ -273,15 +307,25 @@ def search_text(job: dict[str, Any]) -> str:
     return " ".join(p for p in parts if p).strip()
 
 
+
+# Different vendor templates mark the start of a new fault block
+# differently. `工单标签/tags` repeats for each block in the old
+# colon-delimited format; `TikTok Inc Server Fault Report` repeats for
+# each block in the tab-delimited table export. Whichever one actually
+# repeats (>1 occurrence) in this particular paste is the splitter.
+_MULTI_BLOCK_MARKERS = ["工单标签/tags", "TikTok Inc Server Fault Report"]
+
+
 def parse_multi_ticket(raw: str, ticket_number: str = "") -> list[dict[str, Any]]:
     """
-    Detect multi-block tickets (multiple 工单标签/tags: sections).
-    Returns a list of jobs.
+    Detect multi-block tickets (multiple fault-report sections pasted
+    together as one). Returns a list of jobs.
     """
-    marker = "工单标签/tags"
-    if raw.count(marker) > 1:
+    marker = next((m for m in _MULTI_BLOCK_MARKERS if raw.count(m) > 1), None)
+    if marker:
         parts = raw.split(marker)
-        blocks = [marker + ":" + p for p in parts[1:] if p.strip()]
+        sep = ":" if marker == "工单标签/tags" else ""
+        blocks = [marker + sep + p for p in parts[1:] if p.strip()]
     else:
         blocks = [raw]
     jobs = []

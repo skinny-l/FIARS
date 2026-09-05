@@ -3,7 +3,7 @@ import os, sys, tempfile
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from fiars import db
-from fiars.parser import parse_ticket, search_text
+from fiars.parser import parse_ticket, parse_multi_ticket, search_text
 from fiars.report import build_report, default_draft
 from tests.sample_tickets import (
     HDD_TICKET, HDD_TICKET_NUMBER,
@@ -140,3 +140,54 @@ def test_part_position_strips_vendor_boilerplate_note():
     r = build_report(draft)
     assert "如果报修为硬盘故障" not in r
     assert "Old Memory (slot P1_C1_D0)" in r
+
+
+def test_parse_ticket_tab_delimited_format():
+    # Some vendor exports (e.g. a table copied straight out of a browser)
+    # use a literal tab between label and value instead of a colon -- was
+    # previously only implemented in a stray, never-imported parser.py at
+    # the repo root and never actually active; now merged into the real
+    # fiars/parser.py that server.py imports.
+    raw = (
+        "TikTok Inc Server Fault Report\n"
+        "Server SN\t21X999001\n"
+        "IP\t10.0.0.5\n"
+        "Product_Manufacturer\tInspur\n"
+        "Server_Suite\tS520-B3\n"
+        "Suite_Name\tS68M1-I9DD3B-L-WW\n"
+        "Asset_Number\tAB12345\n"
+        "Fault Type\tDisk\n"
+        "Part_Capacity\t2TB\n"
+    )
+    job = parse_ticket(raw, "TICKET-TAB-1")
+    assert job["server_sn"] == "21X999001"
+    assert job["server_ip"] == "10.0.0.5"
+    assert job["manufacturer"] == "Inspur"
+    assert job["server_model"] == "S520-B3"
+    assert job["server_product"] == "S68M1-I9DD3B-L-WW"
+    assert job["asset_no"] == "AB12345"
+    assert job["fault_type"] == "Disk"
+    assert job["part"]["size"] == "2TB"
+    # The repeating banner line must not leak into fields or flags.
+    assert "TikTok Inc Server Fault Report" not in job["fields"]
+    assert not any("TikTok" in f for f in job["flags"])
+
+
+def test_parse_multi_ticket_tab_delimited_marker():
+    # The tab-delimited export repeats "TikTok Inc Server Fault Report" as
+    # its block boundary instead of "工单标签/tags" -- parse_multi_ticket
+    # must detect whichever marker actually repeats in this particular paste.
+    raw = (
+        "TikTok Inc Server Fault Report\n"
+        "Server SN\t21X001\n"
+        "Fault Type\tDisk\n"
+        "TikTok Inc Server Fault Report\n"
+        "Server SN\t21X002\n"
+        "Fault Type\tMemory\n"
+    )
+    jobs = parse_multi_ticket(raw, "MULTI-TAB-1")
+    assert len(jobs) == 2
+    assert jobs[0]["server_sn"] == "21X001"
+    assert jobs[0]["fault_type"] == "Disk"
+    assert jobs[1]["server_sn"] == "21X002"
+    assert jobs[1]["fault_type"] == "Memory"
