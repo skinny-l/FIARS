@@ -11,7 +11,7 @@ from fiars import db
 from fiars.extract import extract_text
 from fiars.config import load_config
 from fiars.parser import parse_ticket, parse_multi_ticket, search_text, infer_category
-from fiars.parser_table import parse_dispatch_table, merge_dispatch, HEADERS
+from fiars.parser_table import parse_dispatch_table, merge_dispatch, HEADERS, extract_shift_banner
 from fiars.recommend import diagnose
 from fiars.report import build_report, build_combined_report, default_draft
 from fiars.smart_search import smart_search
@@ -194,8 +194,10 @@ class Handler(BaseHTTPRequestHandler):
 
             if path == "/api/dispatch_preview":
                 b = self._body()
-                rows = parse_dispatch_table(b.get("raw", ""))
-                return self._json(200, {"rows": rows, "headers": HEADERS})
+                raw = b.get("raw", "")
+                rows = parse_dispatch_table(raw)
+                shift_engineers = extract_shift_banner(raw)
+                return self._json(200, {"rows": rows, "headers": HEADERS, "shift_engineers": shift_engineers})
 
             if path == "/api/parse":
                 b = self._body()
