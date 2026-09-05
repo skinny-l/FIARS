@@ -1950,9 +1950,25 @@ function splitAllDispatchEngineers(raw){
   return cleaned.split('|').map(s=>s.trim()).filter(Boolean);
 }
 
-function ccAllNamesFromJob(job){
-  const names=splitAllDispatchEngineers(job&&job.dispatch_engineer);
+function ccAllNames(){
+  // The Compliance Checklist is a per-session/group attestation, not tied to
+  // one ticket -- pull from every row of the pasted dispatch table (each row
+  // has its own "engineer" cell, itself possibly "Aziz | Fahrul") so all
+  // names across the whole batch end up on the signature line, not just
+  // whichever name happens to sit on S.job's one matched row.
+  const seen=new Set(), names=[];
+  (typeof dispatchRows!=='undefined'?dispatchRows:[]).forEach(row=>{
+    if(!row||row._unparsed) return;
+    splitAllDispatchEngineers(row.engineer).forEach(n=>{
+      const key=n.toLowerCase();
+      if(!seen.has(key)){seen.add(key);names.push(n)}
+    });
+  });
   if(names.length) return names.join(' ');
+  // No dispatch table rows (or none had names) -- fall back to the single
+  // currently-parsed ticket's engineer field, then the config-box default.
+  const jobNames=splitAllDispatchEngineers(S.job&&S.job.dispatch_engineer);
+  if(jobNames.length) return jobNames.join(' ');
   return $('cEng').value||'';
 }
 
@@ -2072,7 +2088,7 @@ function buildCompliancePDF(fields){
 
 $('dlCompliance').onclick=()=>{
   if(!S.job){toast('Parse a ticket first, then click Download Compliance Checklist',1);return}
-  const engineer=ccAllNamesFromJob(S.job)||'ENGINEER';
+  const engineer=ccAllNames()||'ENGINEER';
   const dateStr=new Date().toLocaleDateString('en-US');
   buildCompliancePDF({items:ccCheckboxState(false),engineer,dateStr});
   toast('Compliance Checklist PDF downloaded');
@@ -2081,7 +2097,7 @@ $('dlCompliance').onclick=()=>{
 $('ccAutoFill').onclick=()=>{
   if(!S.job){toast('Parse a ticket first, then click Auto-fill',1);return}
   document.querySelectorAll('[data-cc]').forEach(el=>el.checked=true);
-  $('ccSig').textContent=ccAllNamesFromJob(S.job)||'ENGINEER';
+  $('ccSig').textContent=ccAllNames()||'ENGINEER';
   $('ccDate').textContent=new Date().toLocaleDateString('en-US');
   toast('Compliance Checklist auto-filled from parsed ticket');
 };
