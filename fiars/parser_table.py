@@ -32,9 +32,19 @@ Rows are matched to parsed ticket jobs (from parser.py) by Server SN, then
 disambiguated by category, then by order of appearance. This is the piece
 that currently has to be typed by hand: Ticket Number, OLD/NEW PN.
 Engineer is parsed and merged onto the matched job as job["dispatch_engineer"]
-(raw string, e.g. "Riley | Alex" or "Jordan | Drew Deliver onsite") for the
-Dual-Person Ops form to split into Engineer / Safety Supervisor names — not
-otherwise used in the main fault report.
+(raw string, e.g. "Riley | Alex" or "Jordan | Drew Deliver onsite"). The
+Checklist, Dual-Person Ops, and Compliance Checklist forms all prefer the
+shift banner (extract_shift_banner(), below) for on-site names instead —
+a row's Engineer cell is often just whoever physically carried that one
+spare part, not the engineer(s) actually on-site for the shift — and only
+fall back to this per-row field when no banner or dispatch table was
+pasted at all. Not otherwise used in the main fault report.
+
+The matched row's Date cell is likewise merged onto the job as
+job["dispatch_date"] (raw string, e.g. "4/9/2026", D/M/YYYY as pasted) so
+the attestation forms can date themselves for the day the work is actually
+dispatched for, rather than the day the engineer happens to be filling the
+form in (tickets are commonly reviewed/pre-filled the night before).
 """
 from __future__ import annotations
 
@@ -274,6 +284,8 @@ def merge_dispatch(jobs: list[dict[str, Any]], rows: list[dict[str, Any]]) -> li
             job["part"]["dispatch_label"] = match["faulty_part"]
         if match.get("engineer"):
             job["dispatch_engineer"] = match["engineer"]
+        if match.get("date"):
+            job["dispatch_date"] = match["date"]
         job["dispatch_matched"] = True
 
     # Second pass: any dispatch rows still unconsumed (remaining > 0) for a

@@ -1423,8 +1423,15 @@ $('clAutoFill').onclick=()=>{
   if(!S.job){toast('Parse a ticket first, then click Auto-fill',1);return}
   const j=S.job;
   $('clTicket').textContent=j.ticket_number||'';
-  $('clSig').textContent=$('cEng').value||'ENGINEER';
-  $('clDate').textContent=new Date().toLocaleDateString('en-GB',{day:'numeric',month:'long',year:'numeric'});
+  // Checklist has a single "Signature" line -- use the first name from the
+  // shift's on-site team (same banner-first source as the Compliance
+  // Checklist), not the config-box default, so it reflects who's actually
+  // on-site for this ticket rather than always the same fixed name.
+  $('clSig').textContent=dispatchTeamNames()[0]||$('cEng').value||'ENGINEER';
+  // Date the ticket's own dispatch row (or the table's latest date) for,
+  // not today -- tickets are often studied the night before the actual
+  // on-site visit, so "today" can be a day early until after midnight.
+  $('clDate').textContent=attestationDate(j).toLocaleDateString('en-GB',{day:'numeric',month:'long',year:'numeric'});
 
   // Determine repair type from the parsed category (falls back to a
   // shutdown-required, FW-relevant profile if category is unrecognised —
@@ -1651,8 +1658,8 @@ $('dlChecklist').onclick=()=>{
   if(!S.job){toast('Parse a ticket first, then click Download Checklist',1);return}
   const j=S.job;
   const ticket=j.ticket_number||'unknown-ticket';
-  const engineer=$('cEng').value||'ENGINEER';
-  const dateStr=new Date().toLocaleDateString('en-GB',{day:'numeric',month:'long',year:'numeric'});
+  const engineer=dispatchTeamNames()[0]||$('cEng').value||'ENGINEER';
+  const dateStr=attestationDate(j).toLocaleDateString('en-GB',{day:'numeric',month:'long',year:'numeric'});
   buildChecklistPDF(ticket,engineer,dateStr,computeRowsFromProfile(j));
   toast('Checklist PDF downloaded');
 };
@@ -1676,24 +1683,6 @@ let DP_SS_DEFAULT='';  // safety_supervisor_name from config, filled at Init
 
 $('dpDate').textContent=new Date().toLocaleDateString('en-GB',{day:'numeric',month:'long',year:'numeric'});
 
-// Splits a dispatch-table "engineer" cell into up to two on-site names for
-// Engineer / Safety Supervisor. Real cells look like "Riley | Alex",
-// "Jordan | Drew Deliver onsite", or occasionally 3 names / a single name
-// with no pipe at all — never a fixed shape, so this is deliberately
-// tolerant rather than strict.
-function splitDispatchEngineer(raw){
-  if(!raw) return {engineer:'',supervisor:''};
-  // Drop trailing logistics notes some rows carry after the names
-  // (e.g. "Deliver onsite", "onsite troubleshoot") — these ride along in
-  // the same cell as the last name and aren't part of anyone's name.
-  const cleaned=raw.replace(/\b(deliver onsite|onsite troubleshoot|priority)\b/gi,'').trim();
-  const names=cleaned.split('|').map(s=>s.trim()).filter(Boolean);
-  return {
-    engineer:names[0]||'',
-    supervisor:names[1]||'',
-  };
-}
-
 function fillDualPersonFromJob(job){
   $('dpTicket').textContent=job.ticket_number||'';
   $('dpServerSN').textContent=job.server_sn||'';
@@ -1710,17 +1699,23 @@ function fillDualPersonFromJob(job){
 $('dpAutoFill').onclick=()=>{
   if(!S.job){toast('Parse a ticket first, then click Auto-fill',1);return}
   fillDualPersonFromJob(S.job);
-  // Prefer the dispatch table's per-ticket names (matches who's actually
-  // on-site for THIS job) over the config-box defaults; fall back to those
-  // defaults only when no dispatch table was pasted or nothing matched.
-  const names=splitDispatchEngineer(S.job.dispatch_engineer);
-  const engineer=names.engineer||$('cEng').value||'';
-  const supervisor=names.supervisor||DP_SS_DEFAULT||'';
+  // Prefer the shift banner's on-site team (same banner-first source as the
+  // Compliance Checklist) over any single row's Engineer cell -- a row's
+  // "Deliver onsite" name is often just whoever carried that one spare
+  // part, not the engineer/safety-supervisor pair actually on-site. Fall
+  // back to the config-box defaults only when no banner or dispatch table
+  // was pasted at all.
+  const names=dispatchTeamNames();
+  const engineer=names[0]||$('cEng').value||'';
+  const supervisor=names[1]||DP_SS_DEFAULT||'';
   $('dpEngineer').textContent=engineer;
   $('dpSupervisor').textContent=supervisor;
   $('dpSigEng').textContent=engineer||'\u00A0';
   $('dpSigSup').textContent=supervisor||'\u00A0';
-  $('dpDate').textContent=new Date().toLocaleDateString('en-GB',{day:'numeric',month:'long',year:'numeric'});
+  // Date the ticket's own dispatch row (or the table's latest date) for,
+  // not today -- tickets are often studied the night before the actual
+  // on-site visit, so "today" can be a day early until after midnight.
+  $('dpDate').textContent=attestationDate(S.job).toLocaleDateString('en-GB',{day:'numeric',month:'long',year:'numeric'});
   toast('Dual-Person form auto-filled from parsed ticket');
 };
 
@@ -1843,10 +1838,10 @@ function buildDualPersonPDF(fields){
 $('dlDualPerson').onclick=()=>{
   if(!S.job){toast('Parse a ticket first, then click Download Dual-Person Form',1);return}
   const j=S.job;
-  const dateStr=new Date().toLocaleDateString('en-GB',{day:'numeric',month:'long',year:'numeric'});
-  const names=splitDispatchEngineer(j.dispatch_engineer);
-  const engineer=names.engineer||$('cEng').value||'';
-  const supervisor=names.supervisor||DP_SS_DEFAULT||'';
+  const dateStr=attestationDate(j).toLocaleDateString('en-GB',{day:'numeric',month:'long',year:'numeric'});
+  const names=dispatchTeamNames();
+  const engineer=names[0]||$('cEng').value||'';
+  const supervisor=names[1]||DP_SS_DEFAULT||'';
   buildDualPersonPDF({
     ticket:j.ticket_number||'unknown-ticket',
     serverSN:j.server_sn||'unknown-sn',
@@ -1952,16 +1947,69 @@ function splitAllDispatchEngineers(raw){
   return cleaned.split('|').map(s=>s.trim()).filter(Boolean);
 }
 
-function ccAllNames(){
-  // The Compliance Checklist covers the whole shift's on-site team, and the
-  // authoritative source for that is the banner line pasted above the
-  // dispatch table header (e.g. "Fahrul | Aziz | Hariz - BDC02 @ 9:30 am"),
-  // NOT the per-row Engineer cells -- those can carry a different, older,
-  // or partial name list (a reopened ticket's original team, or just
-  // whichever one of the group got credited for that specific part swap).
-  // Mixing row names in on top of the banner is how unrelated names like
-  // "Zul | Xianyao" from an old row ended up on today's checklist.
-  if(dispatchShiftEngineers&&dispatchShiftEngineers.length) return dispatchShiftEngineers.join(' ');
+// Parses a dispatch-table Date cell like "4/9/2026" or "26/6/2026 - Priority"
+// (day/month/year, matching how the table is always pasted) into a JS
+// Date at local midnight. Deliberately NOT new Date(raw) -- that assumes
+// M/D/Y in most locales, which silently misreads any day <= 12 (e.g.
+// "4/9/2026" as April 9th instead of 4 September).
+function parseDispatchDate(raw){
+  if(!raw) return null;
+  const m=/^(\d{1,2})\/(\d{1,2})\/(\d{4})/.exec(String(raw).trim());
+  if(!m) return null;
+  const day=+m[1], month=+m[2], year=+m[3];
+  const d=new Date(year,month-1,day);
+  // Guard against e.g. "31/13/2026" silently rolling over to another month.
+  if(d.getFullYear()!==year||d.getMonth()!==month-1||d.getDate()!==day) return null;
+  return d;
+}
+
+// Latest date found across the pasted dispatch table, or null if no table
+// was pasted (or no row had a parseable date).
+//
+// Tickets are commonly reviewed/pre-filled the night before the actual
+// on-site visit -- new Date() would then print the wrong (earlier) date
+// on every attestation form until after midnight. The dispatch table's
+// own Date column reflects the day the work is actually dispatched for,
+// so that's used instead. LATEST rather than earliest because a reopened
+// ticket's row can carry a stale date from its first attempt (e.g.
+// "29/8/2026" sitting alongside today's real "4/9/2026" rows) -- the
+// most recent date in the table is the day actually being worked.
+function dispatchLatestDate(){
+  let latest=null;
+  (typeof dispatchRows!=='undefined'?dispatchRows:[]).forEach(row=>{
+    if(!row||row._unparsed) return;
+    const d=parseDispatchDate(row.date);
+    if(d&&(!latest||d>latest)) latest=d;
+  });
+  return latest;
+}
+
+// The date to stamp on an attestation form for a given parsed job: that
+// job's own matched dispatch row first (most precise -- job.dispatch_date,
+// merged server-side in parser_table.py), then the latest date anywhere
+// in the pasted table, then today's actual date as the last resort (e.g.
+// no dispatch table pasted at all, so there's nothing else to go on).
+function attestationDate(job){
+  const jobDate=job&&parseDispatchDate(job.dispatch_date);
+  return jobDate||dispatchLatestDate()||new Date();
+}
+
+// Ordered list of on-site names for the CURRENT shift, most-authoritative
+// source first. Shared by the Checklist (wants name #1), Dual-Person Ops
+// (wants names #1 and #2 as Engineer / Safety Supervisor), and the
+// Compliance Checklist (wants all of them) -- so all three forms agree on
+// who was on-site instead of each one guessing from a different source.
+//
+// The banner line pasted above the dispatch table header (e.g.
+// "Fahrul | Aziz | Hariz - BDC02 @ 9:30 am") is preferred over any
+// per-row Engineer cell: a row's Engineer/"Deliver onsite" name is often
+// just whoever physically carried that one spare part, not the engineer(s)
+// actually on-site for the shift, and a row can also carry a different,
+// older, or partial name list (e.g. a reopened ticket's original team).
+// Mixing row names in on top of the banner is how unrelated names like
+// "Zul | Xianyao" from an old row used to end up on the forms.
+function dispatchTeamNames(){
+  if(dispatchShiftEngineers&&dispatchShiftEngineers.length) return dispatchShiftEngineers.slice();
 
   // No banner line was pasted (or it didn't parse) -- fall back to the
   // union of whatever names appear across the dispatch rows.
@@ -1973,12 +2021,20 @@ function ccAllNames(){
       if(!seen.has(key)){seen.add(key);names.push(n)}
     });
   });
-  if(names.length) return names.join(' ');
+  if(names.length) return names;
   // No dispatch table rows (or none had names) -- fall back to the single
-  // currently-parsed ticket's engineer field, then the config-box default.
+  // currently-parsed ticket's engineer field.
   const jobNames=splitAllDispatchEngineers(S.job&&S.job.dispatch_engineer);
-  if(jobNames.length) return jobNames.join(' ');
-  return $('cEng').value||'';
+  if(jobNames.length) return jobNames;
+  return [];
+}
+
+function ccAllNames(){
+  // The Compliance Checklist covers the whole shift's on-site team, so it
+  // wants every name dispatchTeamNames() found, falling back to the
+  // config-box default engineer only if none was found at all.
+  const names=dispatchTeamNames();
+  return names.length ? names.join(' ') : ($('cEng').value||'');
 }
 
 function ccCheckboxState(fromDOM){
@@ -2098,7 +2154,10 @@ function buildCompliancePDF(fields){
 $('dlCompliance').onclick=()=>{
   if(!S.job){toast('Parse a ticket first, then click Download Compliance Checklist',1);return}
   const engineer=ccAllNames()||'ENGINEER';
-  const dateStr=new Date().toLocaleDateString('en-US');
+  // Date the ticket's own dispatch row (or the table's latest date) for,
+  // not today -- tickets are often studied the night before the actual
+  // on-site visit, so "today" can be a day early until after midnight.
+  const dateStr=attestationDate(S.job).toLocaleDateString('en-US');
   buildCompliancePDF({items:ccCheckboxState(false),engineer,dateStr});
   toast('Compliance Checklist PDF downloaded');
 };
@@ -2107,7 +2166,7 @@ $('ccAutoFill').onclick=()=>{
   if(!S.job){toast('Parse a ticket first, then click Auto-fill',1);return}
   document.querySelectorAll('[data-cc]').forEach(el=>el.checked=true);
   $('ccSig').textContent=ccAllNames()||'ENGINEER';
-  $('ccDate').textContent=new Date().toLocaleDateString('en-US');
+  $('ccDate').textContent=attestationDate(S.job).toLocaleDateString('en-US');
   toast('Compliance Checklist auto-filled from parsed ticket');
 };
 

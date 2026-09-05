@@ -108,6 +108,24 @@ def test_merge_overrides_ticket_number_and_fills_pn():
     assert job["dispatch_matched"] is True
 
 
+def test_merge_sets_dispatch_date_from_matched_row():
+    # The matched row's Date cell (D/M/YYYY, as pasted) should land on the
+    # job as dispatch_date -- used by the attestation forms to date
+    # themselves for the actual dispatch day, not "whenever this was
+    # filled in".
+    job = parse_ticket(HDD_TICKET, HDD_TICKET_NUMBER)
+    rows = parse_dispatch_table(DISPATCH_ROW_HDD)
+    merge_dispatch([job], rows)
+    assert job["dispatch_date"] == "2/7/2026"
+
+
+def test_merge_no_match_leaves_dispatch_date_unset():
+    job = parse_ticket(HDD_TICKET, HDD_TICKET_NUMBER)
+    rows = parse_dispatch_table(DISPATCH_TABLE_TWO_PARTS)  # different SN entirely
+    merge_dispatch([job], rows)
+    assert "dispatch_date" not in job
+
+
 def test_merge_disambiguates_two_parts_by_category():
     # Same server SN, two categories — must not cross-match.
     board_job = {"server_sn": "21X100006", "category": "Board", "part": {}}
