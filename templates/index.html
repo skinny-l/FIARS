@@ -1038,6 +1038,16 @@ $('copyRebootList').onclick=()=>{
 // ══════ PARSE TICKET (MISSION BRIEFING) ═════════════════════════════════
 $('parseBtn').onclick=async()=>{
   const btn=$('parseBtn');btn.disabled=true;btn.innerHTML='<span class="sp"></span>Parsing…';
+  // dispatchRows/dispatchShiftEngineers only update ~350ms after the last
+  // keystroke in the dispatch textarea (see the debounced listener above).
+  // Force a fresh, synchronous re-parse of the CURRENT pDispatch content
+  // right before sending this request -- otherwise a paste-then-parse
+  // done faster than that debounce window sends whatever dispatchRows
+  // last held (empty, or a STALE previous paste's rows), and the server
+  // trusts a non-empty dispatch_rows over re-parsing the fresh raw text,
+  // silently matching this ticket against the wrong (or no) dispatch data.
+  clearTimeout(_dtpTimer);
+  await refreshDispatchTable();
   const r=await api('/api/parse',J({raw:$('pRaw').value,ticket_number:$('pTicket').value,
     dispatch_table:$('pDispatch').value,dispatch_rows:dispatchRows.filter(row=>!row._unparsed)}));
   btn.disabled=false;btn.textContent='Parse & diagnose';
@@ -1666,9 +1676,18 @@ $('dlChecklist').onclick=()=>{
 
 $('clDownload').onclick=()=>{
   const ticket=$('clTicket').textContent.trim()||'unknown-ticket';
-  const engineer=$('clSig').textContent.trim()||'ENGINEER';
-  const dateStr=$('clDate').textContent.trim()
-    ||new Date().toLocaleDateString('en-GB',{day:'numeric',month:'long',year:'numeric'});
+  // The on-screen Signature/Date fields start as a hardcoded "ENGINEER"
+  // placeholder / blank respectively (see the static HTML), until
+  // "Auto-fill from ticket" is clicked. Downloading straight away without
+  // ever clicking Auto-fill would otherwise silently bake that literal
+  // placeholder and today's date into the PDF -- so fall back to the same
+  // computation Auto-fill uses whenever the field is still untouched.
+  // A real, deliberately-typed value (including a manual correction after
+  // Auto-fill) is always left alone.
+  const clSigText=$('clSig').textContent.trim();
+  const engineer=(clSigText&&clSigText!=='ENGINEER')?clSigText:(dispatchTeamNames()[0]||$('cEng').value||'ENGINEER');
+  const clDateText=$('clDate').textContent.trim();
+  const dateStr=clDateText||attestationDate(S.job).toLocaleDateString('en-GB',{day:'numeric',month:'long',year:'numeric'});
   buildChecklistPDF(ticket,engineer,dateStr,computeRowsFromDOM());
   toast('Checklist PDF downloaded');
 };
@@ -1858,6 +1877,20 @@ $('dlDualPerson').onclick=()=>{
 };
 
 $('dpDownload').onclick=()=>{
+  // Same untouched-placeholder guard as the Checklist's on-tab download
+  // (see clDownload) -- dpEngineer/dpSupervisor/dpDate all start blank in
+  // the static HTML until "Auto-fill from ticket" is clicked, so downloading
+  // straight away would otherwise silently produce a blank-name, wrong-date
+  // PDF. A real, deliberately-typed value is always left alone.
+  const dpEngineerText=$('dpEngineer').textContent.trim();
+  const dpSupervisorText=$('dpSupervisor').textContent.trim();
+  const names=dispatchTeamNames();
+  const engineer=dpEngineerText||names[0]||$('cEng').value||'';
+  const supervisor=dpSupervisorText||names[1]||DP_SS_DEFAULT||'';
+  const dpDateText=$('dpDate').textContent.trim();
+  const dateStr=dpDateText||attestationDate(S.job).toLocaleDateString('en-GB',{day:'numeric',month:'long',year:'numeric'});
+  const dpSigEngText=$('dpSigEng').textContent.trim();
+  const dpSigSupText=$('dpSigSup').textContent.trim();
   buildDualPersonPDF({
     ticket:$('dpTicket').textContent.trim()||'unknown-ticket',
     serverSN:$('dpServerSN').textContent.trim()||'unknown-sn',
@@ -1866,12 +1899,11 @@ $('dpDownload').onclick=()=>{
     faultType:$('dpFaultType').textContent.trim(),
     six:dpRadioVal('dpSix'),
     shutdown:dpRadioVal('dpShutdown'),
-    engineer:$('dpEngineer').textContent.trim(),
-    supervisor:$('dpSupervisor').textContent.trim(),
-    sigEng:$('dpSigEng').textContent.trim(),
-    sigSup:$('dpSigSup').textContent.trim(),
-    dateStr:$('dpDate').textContent.trim()
-      ||new Date().toLocaleDateString('en-GB',{day:'numeric',month:'long',year:'numeric'}),
+    engineer,
+    supervisor,
+    sigEng:dpSigEngText||engineer,
+    sigSup:dpSigSupText||supervisor,
+    dateStr,
   });
   toast('Dual-Person Form PDF downloaded');
 };
@@ -1992,6 +2024,20 @@ function dispatchLatestDate(){
 function attestationDate(job){
   const jobDate=job&&parseDispatchDate(job.dispatch_date);
   return jobDate||dispatchLatestDate()||new Date();
+}
+
+// Formats a Date as "D-Mon-YYYY" (e.g. "6-Sep-2026") for downloaded
+// filenames -- unambiguous regardless of the on-form display format,
+// which differs per form (Checklist/Dual-Person show 'en-GB' long dates,
+// Compliance shows 'en-US' numeric M/D/Y). Filenames must always derive
+// from the underlying Date object, never by reformatting an
+// already-locale-formatted display string: naively turning Compliance's
+// "9/6/2026" (en-US, September 6th) into "9-6-2026" reads as 9 June to
+// anyone using D/M/Y conventions -- three months off from the real date,
+// and inconsistent with the Checklist's own "6-Sep-2026" for the same day.
+function filenameDatePart(date){
+  const MONTHS=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  return `${date.getDate()}-${MONTHS[date.getMonth()]}-${date.getFullYear()}`;
 }
 
 // Ordered list of on-site names for the CURRENT shift, most-authoritative
@@ -2147,8 +2193,11 @@ function buildCompliancePDF(fields){
   doc.line(marginX+140,y+1,marginX+186,y+1);
 
   const safe=s=>(s||'unknown').replace(/[\\/:*?"<>|]/g,'-');
-  const dateSafe=(fields.dateStr||'').replace(/\//g,'-');
-  doc.save(`compliance_checklist_${safe(fields.engineer)}_${dateSafe||'undated'}.pdf`);
+  // filenameDate is a "D-Mon-YYYY" string computed by the caller from the
+  // real Date object (see filenameDatePart) -- NOT derived from dateStr,
+  // which is in en-US M/D/Y for on-form display and would read as an
+  // ambiguous, easily-misread date if just slash-to-dash'd for the filename.
+  doc.save(`compliance_checklist_${safe(fields.engineer)}_${fields.filenameDate||'undated'}.pdf`);
 }
 
 $('dlCompliance').onclick=()=>{
@@ -2157,8 +2206,9 @@ $('dlCompliance').onclick=()=>{
   // Date the ticket's own dispatch row (or the table's latest date) for,
   // not today -- tickets are often studied the night before the actual
   // on-site visit, so "today" can be a day early until after midnight.
-  const dateStr=attestationDate(S.job).toLocaleDateString('en-US');
-  buildCompliancePDF({items:ccCheckboxState(false),engineer,dateStr});
+  const d=attestationDate(S.job);
+  const dateStr=d.toLocaleDateString('en-US');
+  buildCompliancePDF({items:ccCheckboxState(false),engineer,dateStr,filenameDate:filenameDatePart(d)});
   toast('Compliance Checklist PDF downloaded');
 };
 
@@ -2171,9 +2221,17 @@ $('ccAutoFill').onclick=()=>{
 };
 
 $('ccDownload').onclick=()=>{
-  const engineer=$('ccSig').textContent.trim()||'ENGINEER';
-  const dateStr=$('ccDate').textContent.trim()||new Date().toLocaleDateString('en-US');
-  buildCompliancePDF({items:ccCheckboxState(true),engineer,dateStr});
+  // Same untouched-placeholder guard as the Checklist's on-tab download
+  // (see clDownload) -- ccSig hardcodes "ENGINEER" and ccDate starts blank
+  // in the static HTML until "Auto-fill from ticket" is clicked. A real,
+  // deliberately-typed value (including a manual correction after
+  // Auto-fill) is always left alone.
+  const ccSigText=$('ccSig').textContent.trim();
+  const engineer=(ccSigText&&ccSigText!=='ENGINEER')?ccSigText:(ccAllNames()||'ENGINEER');
+  const ccDateText=$('ccDate').textContent.trim();
+  const d=attestationDate(S.job);
+  const dateStr=ccDateText||d.toLocaleDateString('en-US');
+  buildCompliancePDF({items:ccCheckboxState(true),engineer,dateStr,filenameDate:filenameDatePart(d)});
   toast('Compliance Checklist PDF downloaded');
 };
 
